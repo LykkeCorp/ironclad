@@ -8,13 +8,19 @@ namespace Ironclad.Models
     public class IndexModel
     {
         [Required]
-        public string Username { get; set; }
-
-        public bool IsEmailConfirmed { get; set; }
+        public string Id { get; set; }
 
         [Required]
         [EmailAddress]
         public string Email { get; set; }
+
+        public string FirstName { get; set; }
+
+        public string LastName { get; set; }
+
+        public string FullName { get; set; }
+
+        public bool IsEmailConfirmed { get; set; }
 
         [Phone]
         [Display(Name = "Phone number")]

@@ -210,7 +210,8 @@ namespace Ironclad.Tests.Integration
                 Password = "password",
             };
 
-            await httpClient.AddUserAsync(user).ConfigureAwait(false);
+            var adminUser = await httpClient.GetUserAsync("admin");
+            var usr = await httpClient.AddUserAsync(user).ConfigureAwait(false);
 
             // act
             var automation = new BrowserAutomation(user.Username, user.Password);

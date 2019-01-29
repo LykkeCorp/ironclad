@@ -1,6 +1,16 @@
 ﻿// Copyright (c) Lykke Corp.
 // See the LICENSE file in the project root for more information.
 
+using Autofac;
+using Autofac.Extensions.DependencyInjection;
+using Ironclad.ExternalIdentityProvider;
+using Lykke.Logs;
+using Lykke.Service.ClientAccount.Client;
+using Lykke.Service.PersonalData.Client;
+using Lykke.Service.PersonalData.Contract;
+using Lykke.Service.PersonalData.Settings;
+using Lykke.Service.Registration;
+
 namespace Ironclad
 {
     using System;
@@ -48,7 +58,7 @@ namespace Ironclad
             this.websiteSettings.RestrictedDomains = this.settings.Idp?.RestrictedDomains ?? Array.Empty<string>();
         }
 
-        public void ConfigureServices(IServiceCollection services)
+        public IServiceProvider ConfigureServices(IServiceCollection services)
         {
             services.AddSingleton(this.websiteSettings);
 
@@ -69,6 +79,9 @@ namespace Ironclad
                 })
                 .AddEntityFrameworkStores<ApplicationDbContext>()
                 .AddDefaultTokenProviders();
+
+            services.AddTransientDecorator<IUserStore<ApplicationUser>, UserStore>();
+            services.AddTransient<IPasswordHasher<ApplicationUser>, PasswordHasher>();
 
             services.AddMvc(options => options.ValueProviderFactories.Add(new SnakeCaseQueryValueProviderFactory()))
                 .AddJsonOptions(
@@ -174,6 +187,24 @@ namespace Ironclad
                     options.AddPolicy("auth_admin", policy => policy.AddAuthenticationSchemes("token").Requirements.Add(new SystemAdministratorRequirement()));
                     options.AddPolicy("user_admin", policy => policy.AddAuthenticationSchemes("token").Requirements.Add(new UserAdministratorRequirement()));
                 });
+
+            var builder = new ContainerBuilder();
+
+            builder.RegisterLykkeServiceClient(this.settings.Clients.ClientAccountServiceUrl);
+
+            builder.RegisterInstance(new PersonalDataService(new PersonalDataServiceClientSettings
+            {
+                ApiKey = this.settings.Clients.PersonalDataServiceKey,
+                ServiceUri = this.settings.Clients.PersonalDataServiceUrl
+            }, EmptyLogFactory.Instance)).As<IPersonalDataService>();
+            
+            builder.RegisterRegistrationServiceClient(new RegistrationServiceClientSettings{ServiceUrl = this.settings.Clients.RegistrationServiceUrl});
+
+            builder.Populate(services);
+
+            var container = builder.Build();
+
+            return new AutofacServiceProvider(container);
         }
 
         public void Configure(IApplicationBuilder app, IHostingEnvironment env)

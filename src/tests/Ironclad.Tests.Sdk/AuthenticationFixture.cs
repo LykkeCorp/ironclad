@@ -51,7 +51,7 @@ namespace Ironclad.Tests.Sdk
             await this.fixture.InitializeAsync().ConfigureAwait(false);
 
             // NOTE (Cameron): This automation is designed to use the default admin credentials (which need removing!) to log in to perform admin operations.
-            var automation = new BrowserAutomation("admin", "password");
+            var automation = new BrowserAutomation(TestConfig.DefaultAdminUserEmail, TestConfig.DefaultPassword);
             var browser = new Browser(automation);
             var options = new OidcClientOptions
             {

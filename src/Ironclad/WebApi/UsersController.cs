@@ -1,6 +1,11 @@
 ﻿// Copyright (c) Lykke Corp.
 // See the LICENSE file in the project root for more information.
 
+using System.Runtime.InteropServices;
+using Lykke.Service.ClientAccount.Client;
+using Lykke.Service.PersonalData.Client.Models;
+using Lykke.Service.PersonalData.Contract;
+
 #pragma warning disable CA1308
 
 namespace Ironclad.WebApi
@@ -54,17 +59,23 @@ namespace Ironclad.WebApi
         private readonly RoleManager<IdentityRole> roleManager;
         private readonly IUserClaimsPrincipalFactory<ApplicationUser> claimsFactory;
         private readonly IEmailSender emailSender;
+        private readonly IClientAccountClient clientAccountClient;
+        private readonly IPersonalDataService personalDataService;
 
         public UsersController(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
             IUserClaimsPrincipalFactory<ApplicationUser> claimsFactory,
-            IEmailSender emailSender)
+            IEmailSender emailSender,
+            IClientAccountClient clientAccountClient,
+            IPersonalDataService personalDataService)
         {
             this.userManager = userManager;
             this.roleManager = roleManager;
             this.claimsFactory = claimsFactory;
             this.emailSender = emailSender;
+            this.clientAccountClient = clientAccountClient;
+            this.personalDataService = personalDataService;
         }
 
         [HttpGet]
@@ -73,19 +84,21 @@ namespace Ironclad.WebApi
             skip = Math.Max(0, skip);
             take = take < 0 ? 20 : Math.Min(take, 100);
 
-            var userQuery = string.IsNullOrEmpty(username)
-                ? this.userManager.Users
-                : this.userManager.Users.Where(user => user.UserName.StartsWith(username, StringComparison.OrdinalIgnoreCase));
+            SearchPersonalDataModel searchModel =
+                await this.personalDataService.FindClientsByEmail(username);
 
-            var totalSize = await userQuery.CountAsync();
-            var users = await userQuery.OrderBy(user => user.UserName).Skip(skip).Take(take).ToListAsync();
+            var allUsers = new List<PersonalDataModel> { searchModel };
+            allUsers.AddRange(searchModel.OtherClients);
+
+            var totalSize = allUsers.Count;
+            var users = allUsers.OrderBy(user => user.Email).Skip(skip).Take(take).ToList();
             var resources = users.Select(
                 user =>
                 new UserSummaryResource
                 {
-                    Url = this.HttpContext.GetIdentityServerRelativeUrl("~/api/users/" + user.UserName),
+                    Url = this.HttpContext.GetIdentityServerRelativeUrl("~/api/users/" + user.Id),
                     Id = user.Id,
-                    Username = user.UserName,
+                    Username = user.Email,
                     Email = user.Email,
                 });
 
@@ -98,9 +111,8 @@ namespace Ironclad.WebApi
         [HttpGet("{username}")]
         public async Task<IActionResult> Get(string username)
         {
-            // HACK (Pawel): This is a temporary measure until we have a sensible way to resolve subject identifiers with username etc.
-            // TODO (Cameron): "temporary"
             var user = await this.userManager.FindByNameAsync(username) ?? await this.userManager.FindByIdAsync(username);
+
             if (user == null)
             {
                 return this.NotFound(new { Message = $"User '{username}' not found" });
@@ -272,7 +284,7 @@ namespace Ironclad.WebApi
                 return this.NotFound(new { Message = $"User '{username}' not found" });
             }
 
-            if (user.Id == Config.DefaultAdminUserId && model.Roles != null && !model.Roles.Contains("admin"))
+            if (user.Email == Config.DefaultAdminUserEmail && model.Roles != null && !model.Roles.Contains("admin"))
             {
                 return this.BadRequest(new { Message = $"Cannot remove the role 'admin' from the default admin user" });
             }
@@ -338,17 +350,19 @@ namespace Ironclad.WebApi
         [HttpDelete("{username}")]
         public async Task<IActionResult> Delete(string username)
         {
-            var user = await this.userManager.FindByNameAsync(username);
-            if (user == null)
-            {
-                return this.Ok();
-            }
-
-            if (user.Id == Config.DefaultAdminUserId)
+            if (username == Config.DefaultAdminUserEmail)
             {
                 return this.BadRequest(new { Message = $"Cannot remove the default admin user" });
             }
 
+            var user = new ApplicationUser
+            {
+                Email = username,
+                UserName = username,
+                NormalizedEmail = username.ToUpper(),
+                NormalizedUserName = username.ToUpper(),
+            };
+            
             await this.userManager.DeleteAsync(user);
 
             return this.NoContent();
@@ -544,7 +558,7 @@ namespace Ironclad.WebApi
                 return this.BadRequest(new { Message = "Cannot remove empty role" });
             }
 
-            if (user.Id == Config.DefaultAdminUserId && roles.Contains("admin", StringComparer.OrdinalIgnoreCase))
+            if (user.Email == Config.DefaultAdminUserEmail && roles.Contains("admin", StringComparer.OrdinalIgnoreCase))
             {
                 return this.BadRequest(new { Message = $"Cannot remove the role 'admin' from the default admin user" });
             }

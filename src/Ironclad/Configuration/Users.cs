@@ -7,8 +7,14 @@ namespace Ironclad.Configuration
 
     public static partial class Config
     {
-        public const string DefaultAdminUserId = "e4744f59155040599fb057d62e84c079";
+        public const string DefaultAdminUserEmail = "ironcladadmin@test.com";
 
-        public static ApplicationUser GetDefaultAdminUser() => new ApplicationUser { Id = DefaultAdminUserId, UserName = "admin" };
+        public static ApplicationUser GetDefaultAdminUser() => new ApplicationUser
+        {
+            UserName = DefaultAdminUserEmail, 
+            Email = DefaultAdminUserEmail,
+            NormalizedEmail = DefaultAdminUserEmail.ToUpper(),
+            NormalizedUserName = DefaultAdminUserEmail.ToUpper()
+        };
     }
 }

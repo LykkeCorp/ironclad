@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Ironclad.ExternalIdentityProvider
 {
-    internal static class DecoratorExtensions
+    public static class DecoratorExtensions
     {
         public static void AddTransientDecorator<TService, TImplementation>(this IServiceCollection services)
             where TService : class
