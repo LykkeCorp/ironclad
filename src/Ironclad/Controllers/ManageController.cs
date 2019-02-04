@@ -60,8 +60,11 @@ namespace Ironclad.Controllers
 
             var model = new IndexModel
             {
-                Username = user.UserName,
+                Id = user.Id,
                 Email = user.Email,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                FullName = user.FullName,
                 PhoneNumber = user.PhoneNumber,
                 IsEmailConfirmed = user.EmailConfirmed,
                 StatusMessage = this.StatusMessage
@@ -86,36 +89,26 @@ namespace Ironclad.Controllers
                 throw new ApplicationException($"Unable to load user with ID '{this.userManager.GetUserId(this.User)}'.");
             }
 
-            var username = user.UserName;
-            if (model.Username != username)
-            {
-                var setUsernameResult = await this.userManager.SetUserNameAsync(user, model.Username);
-                if (!setUsernameResult.Succeeded)
-                {
-                    this.ModelState.AddModelError("Username", setUsernameResult.Errors.FirstOrDefault()?.Description);
-                    return this.View(model);
-                }
-            }
-
-            var email = user.Email;
-            if (model.Email != email)
-            {
-                var setEmailResult = await this.userManager.SetEmailAsync(user, model.Email);
-                if (!setEmailResult.Succeeded)
-                {
-                    throw new ApplicationException($"Unexpected error occurred setting email for user with ID '{user.Id}'.");
-                }
-            }
-
-            var phoneNumber = user.PhoneNumber;
-            if (model.PhoneNumber != phoneNumber)
-            {
-                var setPhoneResult = await this.userManager.SetPhoneNumberAsync(user, model.PhoneNumber);
-                if (!setPhoneResult.Succeeded)
-                {
-                    throw new ApplicationException($"Unexpected error occurred setting phone number for user with ID '{user.Id}'.");
-                }
-            }
+            // TODO: implement update fields logic
+//            var email = user.Email;
+//            if (model.Email != email)
+//            {
+//                var setEmailResult = await this.userManager.SetEmailAsync(user, model.Email);
+//                if (!setEmailResult.Succeeded)
+//                {
+//                    throw new ApplicationException($"Unexpected error occurred setting email for user with ID '{user.Id}'.");
+//                }
+//            }
+//
+//            var phoneNumber = user.PhoneNumber;
+//            if (model.PhoneNumber != phoneNumber)
+//            {
+//                var setPhoneResult = await this.userManager.SetPhoneNumberAsync(user, model.PhoneNumber);
+//                if (!setPhoneResult.Succeeded)
+//                {
+//                    throw new ApplicationException($"Unexpected error occurred setting phone number for user with ID '{user.Id}'.");
+//                }
+//            }
 
             this.StatusMessage = "Your profile has been updated";
             return this.RedirectToAction(nameof(this.Index));

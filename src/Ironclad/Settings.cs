@@ -29,6 +29,8 @@ namespace Ironclad
         public MailSettings Mail { get; set; }
 
         public AzureSettings Azure { get; set; }
+        
+        public ClientsSettings Clients { get; set; }
 
         public void Validate()
         {
@@ -355,6 +357,17 @@ Please see https://gist.github.com/cameronfletcher/58673a468c8ebbbf91b81e706063b
 
                 public void Dispose() => this.client?.Dispose();
             }
+        }
+
+        public sealed class ClientsSettings
+        {
+            public string ClientAccountServiceUrl { get; set; }
+
+            public string RegistrationServiceUrl { get; set; }
+
+            public string PersonalDataServiceUrl { get; set; }
+
+            public string PersonalDataServiceKey { get; set; }
         }
     }
 }

@@ -28,9 +28,16 @@
   </ItemGroup>
   
   <ItemGroup>
+    <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="4.2.2" />
     <PackageReference Include="IdentityServer4.AccessTokenValidation" Version="2.6.0" />
     <PackageReference Include="IdentityServer4.AspNetIdentity" Version="2.1.0" />
     <PackageReference Include="IdentityServer4.Postgresql" Version="2.0.5" />
+    <PackageReference Include="Lykke.Common" Version="7.3.1" />
+    <PackageReference Include="Lykke.Logs" Version="7.2.1" />
+    <PackageReference Include="Lykke.Service.ClientAccount.Client" Version="3.0.11" />
+    <PackageReference Include="Lykke.Service.PersonalData" Version="2.1.1" />
+    <PackageReference Include="Lykke.Service.Registration" Version="3.2.2" />
+    <PackageReference Include="Lykke.Service.Registration.Contract" Version="1.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.AzureKeyVault" Version="2.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.AzureStorage" Version="2.1.1" />

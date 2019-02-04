@@ -252,7 +252,7 @@ namespace Ironclad.Tests.Integration
             var url = new RequestUrl(this.Authority + "/connect/authorize")
                 .CreateAuthorizeUrl(client.Id, "id_token token", "openid profile sample_api", client.RedirectUris.First(), "state", "nonce");
 
-            var automation = new BrowserAutomation("admin", "password");
+            var automation = new BrowserAutomation(TestConfig.DefaultAdminUserEmail, TestConfig.DefaultPassword);
             await automation.NavigateToLoginAsync(url).ConfigureAwait(false);
             var authorizeResponse = await automation.LoginToAuthorizationServerAndCaptureRedirectAsync().ConfigureAwait(false);
 
@@ -281,7 +281,7 @@ namespace Ironclad.Tests.Integration
             await httpClient.AddClientAsync(client).ConfigureAwait(false);
 
             // act
-            var automation = new BrowserAutomation("admin", "password");
+            var automation = new BrowserAutomation(TestConfig.DefaultAdminUserEmail, TestConfig.DefaultPassword);
             var browser = new Browser(automation);
             var options = new OidcClientOptions
             {

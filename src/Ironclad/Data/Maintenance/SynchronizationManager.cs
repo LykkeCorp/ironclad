@@ -36,7 +36,8 @@ namespace Ironclad.Data.Maintenance
 
         public async Task SynchonizeAdminUserAsync()
         {
-            var adminUser = await this.userManager.FindByIdAsync(Config.DefaultAdminUserId);
+            var adminUser = await this.userManager.FindByNameAsync(Config.DefaultAdminUserEmail);
+
             if (adminUser != null)
             {
                 return;
