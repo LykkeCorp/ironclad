@@ -367,6 +367,41 @@ namespace Ironclad.WebApi
 
             return this.NoContent();
         }
+        
+        [HttpDelete("{emailPattern}")]
+        public async Task<IActionResult> DeleteUsers(string emailPattern)
+        {
+            SearchPersonalDataModel searchModel = await this.personalDataService.FindClientsByEmail(emailPattern);
+
+            if (searchModel == null)
+            {
+                return this.NoContent();
+            }
+            
+            var emails = new List<string> {searchModel.Email};
+
+            if (searchModel.OtherClients?.Any() ?? false)
+            {
+                emails.AddRange(searchModel.OtherClients.Select(x => x.Email));
+            }
+
+            emails = emails.Where(x => x != Config.DefaultAdminUserEmail).ToList();
+
+            foreach (var email in emails)
+            {
+                var user = new ApplicationUser
+                {
+                    Email = email,
+                    UserName = email,
+                    NormalizedEmail = email.ToUpper(),
+                    NormalizedUserName = email.ToUpper(),
+                };
+                
+                await this.userManager.DeleteAsync(user);
+            }
+
+            return this.NoContent();
+        }
 
         [HttpHead("{username}/claims")]
         [HttpGet("{username}/claims")]

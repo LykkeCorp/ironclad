@@ -1,5 +1,7 @@
 ﻿{
   "auth_server": {
-    "use_source_code": true
+    "use_source_code": false,
+    "use_docker_image": false,
+    "port": 5005
   }
 }

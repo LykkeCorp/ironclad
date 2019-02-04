@@ -81,6 +81,9 @@ namespace Ironclad.Client
         public Task RemoveUserAsync(string username, CancellationToken cancellationToken = default) =>
             this.DeleteAsync(this.RelativeUrl($"{ApiPath}/{WebUtility.UrlEncode(NotNull(username, nameof(username)))}"), cancellationToken);
 
+        public async Task RemoveUsersAsync(string emailPattern, CancellationToken cancellationToken = default) =>
+            this.DeleteAsync(this.RelativeUrl($"{ApiPath}/removeall/{WebUtility.UrlEncode(NotNull(emailPattern, nameof(emailPattern)))}"), cancellationToken);
+
         /// <inheritdoc />
         public async Task<User> ModifyUserAsync(User user, string currentUsername = null, CancellationToken cancellationToken = default)
         {

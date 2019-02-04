@@ -12,10 +12,13 @@ namespace Ironclad.Tests.Bug
 
     public class Bug00090 : AuthenticationTest, IDisposable
     {
-        private string email;
+        private readonly AuthenticationFixture fixture;
+        private readonly string email;
+        
         public Bug00090(AuthenticationFixture fixture)
             : base(fixture)
         {
+            this.fixture = fixture;
             this.email = $"{TestConfig.EmailPrefix}{Guid.NewGuid():N}@test.com";
         }
 
@@ -23,8 +26,6 @@ namespace Ironclad.Tests.Bug
         public async Task ShouldNotThrowInternalServerError()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
-
             var user = new User
             {
                 Username = email,
@@ -35,7 +36,7 @@ namespace Ironclad.Tests.Bug
             };
 
             // act
-            Func<Task> func = async () => await httpClient.AddUserAsync(user).ConfigureAwait(false);
+            Func<Task> func = async () => await this.fixture.UsersClient.AddUserAsync(user).ConfigureAwait(false);
 
             // assert
             func.Should().NotThrow<HttpException>();
@@ -43,8 +44,7 @@ namespace Ironclad.Tests.Bug
 
         public void Dispose()
         {
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
-            httpClient.RemoveUserAsync(this.email).GetAwaiter().GetResult();
+            this.fixture.UsersClient.RemoveUserAsync(this.email).GetAwaiter().GetResult();
         }
     }
 }

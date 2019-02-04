@@ -10,80 +10,76 @@ namespace Ironclad.Tests.Feature
     using FluentAssertions;
     using IdentityModel;
     using IdentityModel.Client;
-    using Ironclad.Client;
-    using Ironclad.Tests.Sdk;
+    using Client;
+    using Sdk;
     using Newtonsoft.Json.Linq;
     using Xbehave;
 
-    public class GettingCustomClaimsFeature : AuthenticationTest
+    public class GettingCustomClaimsFeature : AuthenticationTest, IDisposable
     {
-        private IUsersClient usersClient;
-        private IIdentityResourcesClient identityResourcesClient;
-        private IApiResourcesClient apiResourcesClient;
-        private IClientsClient clientsClient;
+        private readonly AuthenticationFixture _fixture;
+        private readonly string _email;
+        private readonly string _clientId;
+        private const string IdentityResourceName = "amazeballs";
+        private const string ApiResourceName = "amazeballs_api";
 
         public GettingCustomClaimsFeature(AuthenticationFixture fixture)
             : base(fixture)
         {
-        }
-
-        [Background]
-        public void Background()
-        {
-            "Given a users client".x(() => this.usersClient = new UsersHttpClient(this.ApiUri, this.Handler));
-            "And an identity resources client".x(() => this.identityResourcesClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler));
-            "And an API resources client".x(() => this.apiResourcesClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler));
-            "And a clients client".x(() => this.clientsClient = new ClientsHttpClient(this.ApiUri, this.Handler));
+            _fixture = fixture;
+            _email = $"{TestConfig.EmailPrefix}{Guid.NewGuid():N}@test.com";
+            _clientId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
         }
 
         [Scenario]
         public void CanGetCustomClaims(User user, Client client, AuthorizationResponse response)
         {
             "Given the new scope is added to the authorization server"
-                .x(async () => await this.identityResourcesClient.AddIdentityResourceAsync(
+                .x(async () => await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(
                     new IdentityResource
                     {
                         Enabled = true,
-                        Name = "amazeballs",
+                        Name = IdentityResourceName,
                         DisplayName = "Something something amazing",
                         UserClaims = { "amaze", "balls" }
                     }).ConfigureAwait(false));
 
             "And an end-user is added to the authorization server _with claim values matching the new scope_"
-                .x(async () => await this.usersClient.AddUserAsync(
+                .x(async () => await _fixture.UsersClient.AddUserAsync(
                     user = new User
                     {
-                        Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                        Username = _email,
+                        Email = _email,
                         Password = "password",
-                        PhoneNumber = "123",
+                        PhoneNumber = "+123",
                         Claims = { { "amaze", "yes" }, { "balls", "no" } },
                     }).ConfigureAwait(false));
 
             "And an API that requires the claims from the new scope"
-                .x(async () => await this.apiResourcesClient.AddApiResourceAsync(
+                .x(async () => await _fixture.ApiResourcesClient.AddApiResourceAsync(
                     new ApiResource
                     {
-                        Name = "amazeballs_api",
+                        Name = ApiResourceName,
                         ApiSecret = "secret",
                         DisplayName = "Amazeballs API",
                         UserClaims = { "name", "phone_number", "amaze", "balls" },
 
                         // NOTE (Cameron): OMG wat?
                         // LINK (Cameron): https://github.com/IdentityServer/IdentityServer4/blob/2.1.1/src/IdentityServer4/Models/ApiResource.cs#L67
-                        ApiScopes = { new ApiResource.Scope { Name = "amazeballs_api", UserClaims = { "name", "phone_number", "amaze", "balls" } } },
+                        ApiScopes = { new ApiResource.Scope { Name = ApiResourceName, UserClaims = { "name", "phone_number", "amaze", "balls" } } },
 
                         Enabled = true
                     }).ConfigureAwait(false));
 
             "And a client for that API"
-                .x(async () => await this.clientsClient.AddClientAsync(
+                .x(async () => await _fixture.ClientsClient.AddClientAsync(
                     client = new Client
                     {
-                        Id = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                        Name = $"{nameof(GettingCustomClaimsFeature)}.{nameof(this.CanGetCustomClaims)} (integration test)",
+                        Id = _clientId,
+                        Name = $"{nameof(GettingCustomClaimsFeature)}.{nameof(CanGetCustomClaims)} (integration test)",
                         AllowedCorsOrigins = { "http://localhost:5006" },
                         RedirectUris = { "http://localhost:5006/redirect" },
-                        AllowedScopes = { "openid", "amazeballs_api" },
+                        AllowedScopes = { "openid", ApiResourceName },
                         AllowAccessTokensViaBrowser = true,
                         AllowedGrantTypes = { "implicit" },
                         RequireConsent = false,
@@ -93,8 +89,8 @@ namespace Ironclad.Tests.Feature
             "When that end-user logs into the authorization server via the client requesting access to the API"
                 .x(async (context) =>
                 {
-                    var url = new RequestUrl(this.Authority + "/connect/authorize")
-                        .CreateAuthorizeUrl(client.Id, "id_token token", "openid amazeballs_api", client.RedirectUris.First(), "state", "nonce");
+                    var url = new RequestUrl(Authority + "/connect/authorize")
+                        .CreateAuthorizeUrl(client.Id, "id_token token", $"openid {ApiResourceName}", client.RedirectUris.First(), "state", "nonce");
                     var automation = new BrowserAutomation(user.Username, user.Password).Using(context);
                     await automation.NavigateToLoginAsync(url).ConfigureAwait(false);
                     response = await automation.LoginToAuthorizationServerAndCaptureRedirectAsync().ConfigureAwait(false);
@@ -114,6 +110,14 @@ namespace Ironclad.Tests.Feature
                     claims.GetValue("amaze").ToString().Should().Be("yes");
                     claims.GetValue("balls").ToString().Should().Be("no");
                 });
+        }
+
+        public void Dispose()
+        {
+            _fixture.IdentityResourcesClient.RemoveIdentityResourceAsync(IdentityResourceName).GetAwaiter().GetResult();
+            _fixture.ApiResourcesClient.RemoveApiResourceAsync(ApiResourceName).GetAwaiter().GetResult();
+            _fixture.ClientsClient.RemoveClientAsync(_clientId).GetAwaiter().GetResult();
+            _fixture.UsersClient.RemoveUserAsync(_email).GetAwaiter().GetResult();
         }
     }
 }
