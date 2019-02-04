@@ -1,3 +1,5 @@
+using Common;
+
 namespace Ironclad.Application
 {
     using System;
@@ -25,6 +27,7 @@ namespace Ironclad.Application
         private readonly IPersonalDataService personalDataService;
         private readonly IRegistrationServiceClient registrationServiceClient;
         private readonly Decorator<IUserStore<ApplicationUser>> userStoreOrig;
+        private readonly ILogger<UserStore> logger;
 
         public UserStore(
             IClientAccountClient clientAccountClient,
@@ -37,6 +40,7 @@ namespace Ironclad.Application
             this.personalDataService = personalDataService;
             this.registrationServiceClient = registrationServiceClient;
             this.userStoreOrig = userStoreOrig;
+            this.logger = logger;
         }
 
         public void Dispose()
@@ -45,11 +49,24 @@ namespace Ironclad.Application
 
         public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken)
         {
+            if (user == null)
+            {
+                this.logger.LogWarning("user is null!");
+            }
+
+            this.logger.LogInformation($"Getting user Id from: {user.ToJson()}");
             return Task.FromResult(user?.Id);
         }
 
         public Task<string> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken)
         {
+            if (user == null)
+            {
+                this.logger.LogWarning("user is null!");
+            }
+
+            this.logger.LogInformation($"Getting user name from: {user.ToJson()}");
+
             return Task.FromResult(user?.UserName);
         }
 
@@ -192,27 +209,32 @@ namespace Ironclad.Application
             var user = await this.userStoreOrig.Instance.FindByNameAsync(normalizedUserName, cancellationToken);
 
             ClientModel client = null;
-            
+
             if (user != null)
             {
-                client = await this.clientAccountClient.GetByIdAsync(user.Id);               
+                client = await this.clientAccountClient.GetByIdAsync(user.Id);
             }
             else
             {
+                this.logger.LogInformation($"No user in postgras with normalizedUserName = {normalizedUserName}");
+
                 ClientAccountInformationModel clientInfo = await this.clientAccountClient.GetClientByEmailAndPartnerIdAsync(normalizedUserName.ToLower(), null).ConfigureAwait(false);
 
                 if (clientInfo != null)
                 {
+                    this.logger.LogInformation($"ClientInformation from client account: {clientInfo.ToJson()}");
                     client = await this.clientAccountClient.GetByIdAsync(clientInfo.Id);
                 }
             }
-            
+
             if (client != null)
             {
                 IPersonalData pd = await this.personalDataService.GetAsync(client.Id);
+                this.logger.LogInformation($"Personal data: {pd?.ToJson() ?? "no personal data"}");
                 return new ApplicationUser(client, pd);
             }
 
+            this.logger.LogInformation("No client was found!");
             return null;
         }
 
