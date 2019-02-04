@@ -115,31 +115,32 @@
             //        "src/tests/Ironclad.Tests.Sdk/Ironclad.Tests.Sdk.csproj"),
             //    project => Run("dotnet", $"pack {project} -c Release -o ../../{(project.StartsWith("src/tests") ? "../" : "") + ArtifactsFolder} --no-build"));
 
-            Target(
-                PublishNugetPackages,
-                DependsOn(DetectEnvironment, /*CreateNugetPackages,*/ TestDockerImage),
-                () =>
-                {
-                    var packagesToPublish = Directory.GetFiles(ArtifactsFolder, "*.nupkg", SearchOption.TopDirectoryOnly);
-                    Console.WriteLine($"Found packages to publish: {string.Join("; ", packagesToPublish)}");
 
-                    if (isPullRequest)
-                    {
-                        Console.WriteLine("Build is pull request. Packages will not be published.");
-                        return;
-                    }
+            //Target(
+            //    PublishNugetPackages,
+            //    DependsOn(DetectEnvironment, CreateNugetPackages, TestDockerImage),
+            //    () =>
+            //    {
+            //        var packagesToPublish = Directory.GetFiles(ArtifactsFolder, "*.nupkg", SearchOption.TopDirectoryOnly);
+            //        Console.WriteLine($"Found packages to publish: {string.Join("; ", packagesToPublish)}");
 
-                    if (string.IsNullOrWhiteSpace(nugetServer) || string.IsNullOrWhiteSpace(nugetApiKey))
-                    {
-                        Console.WriteLine("NuGet settings not specified. Packages will not be published.");
-                        return;
-                    }
+            //        if (isPullRequest)
+            //        {
+            //            Console.WriteLine("Build is pull request. Packages will not be published.");
+            //            return;
+            //        }
 
-                    foreach (var packageToPublish in packagesToPublish)
-                    {
-                        Run("dotnet", $"nuget push {packageToPublish} -s {nugetServer} -k {nugetApiKey}", noEcho: true);
-                    }
-                });
+            //        if (string.IsNullOrWhiteSpace(nugetServer) || string.IsNullOrWhiteSpace(nugetApiKey))
+            //        {
+            //            Console.WriteLine("NuGet settings not specified. Packages will not be published.");
+            //            return;
+            //        }
+
+            //        foreach (var packageToPublish in packagesToPublish)
+            //        {
+            //            Run("dotnet", $"nuget push {packageToPublish} -s {nugetServer} -k {nugetApiKey}", noEcho: true);
+            //        }
+            //    });
 
             Target(
                 PublishDockerImage,
@@ -165,11 +166,11 @@
 
             Target(
                     PublishAll,
-                    DependsOn(PublishNugetPackages, PublishDockerImage));
+                    DependsOn(/*PublishNugetPackages*/ PublishDockerImage));
 
             Target(
                     "default",
-                    DependsOn(PublishNugetPackages, PublishDockerImage));
+                    DependsOn(/*PublishNugetPackages*/ PublishDockerImage));
 
             RunTargets(args);
         }
