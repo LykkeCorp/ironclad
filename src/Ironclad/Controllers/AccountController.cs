@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Lykke Corp.
 // See the LICENSE file in the project root for more information.
 
+using Ironclad.Data.Migrations;
+
 #pragma warning disable CA1054
 
 namespace Ironclad.Controllers
@@ -258,16 +260,31 @@ namespace Ironclad.Controllers
 
             if (this.ModelState.IsValid)
             {
-                var user = new ApplicationUser { UserName = model.Email, Email = model.Email };
+                var existingUser = await this.userManager.FindByNameAsync(model.Email);
+
+                if (existingUser != null)
+                {
+                    this.ModelState.AddModelError(string.Empty, "User already exists");
+                    return this.View(model);
+                }
+
+                var user = new ApplicationUser
+                {
+                    UserName = model.Email,
+                    Email = model.Email,
+                    FirstName = model.FirstName,
+                    LastName = model.LastName,
+                    FullName = $"{model.FirstName} {model.LastName}"
+                };
 
                 var result = await this.userManager.CreateAsync(user, model.Password);
                 if (result.Succeeded)
                 {
                     this.logger.LogInformation("User created a new account with password.");
 
-                    var code = await this.userManager.GenerateEmailConfirmationTokenAsync(user);
-                    var callbackUrl = this.Url.EmailConfirmationLink(user.Id, code, this.Request.Scheme);
-                    await this.emailSender.SendEmailConfirmationAsync(model.Email, callbackUrl);
+//                    var code = await this.userManager.GenerateEmailConfirmationTokenAsync(user);
+//                    var callbackUrl = this.Url.EmailConfirmationLink(user.Id, code, this.Request.Scheme);
+//                    await this.emailSender.SendEmailConfirmationAsync(model.Email, callbackUrl);
 
                     await this.signInManager.SignInAsync(user, isPersistent: false);
                     this.logger.LogInformation("User created a new account with password.");

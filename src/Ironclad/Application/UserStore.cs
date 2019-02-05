@@ -79,24 +79,23 @@ namespace Ironclad.Application
                     Email = user.UserName,
                     ContactPhone = user.PhoneNumber,
                     Password = user.PasswordHash,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
                     CreatedAt = DateTime.UtcNow
                 }, cancellationToken);
 
             if (result != null)
             {
-                user.Id = result.Account.Id;
-                user.UserName = result.Account.Email;
-                user.Email = result.Account.Email;
-                user.NormalizedUserName = user.UserName.ToUpper();
-                user.NormalizedEmail = user.Email.ToUpper();
-
                 await this.userStoreOrig.Instance.CreateAsync(new ApplicationUser
                 {
                     Id = user.Id,
                     UserName = user.UserName,
                     Email = user.Email,
                     NormalizedUserName = user.UserName.ToUpper(),
-                    NormalizedEmail = user.Email.ToUpper()
+                    NormalizedEmail = user.Email.ToUpper(),
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    FullName = user.FullName
                 }, cancellationToken);
             }
 
