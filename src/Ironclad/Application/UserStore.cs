@@ -81,11 +81,14 @@ namespace Ironclad.Application
                     Password = user.PasswordHash,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
+                    FullName = user.FullName,
                     CreatedAt = DateTime.UtcNow
                 }, cancellationToken);
 
             if (result != null)
             {
+                user.Id = result.Account.Id;
+
                 await this.userStoreOrig.Instance.CreateAsync(new ApplicationUser
                 {
                     Id = user.Id,
