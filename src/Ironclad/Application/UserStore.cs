@@ -25,6 +25,7 @@ namespace Ironclad.Application
         private readonly IPersonalDataService personalDataService;
         private readonly IRegistrationServiceClient registrationServiceClient;
         private readonly Decorator<IUserStore<ApplicationUser>> userStoreOrig;
+        private readonly ILogger<UserStore> logger;
 
         public UserStore(
             IClientAccountClient clientAccountClient,
@@ -37,6 +38,7 @@ namespace Ironclad.Application
             this.personalDataService = personalDataService;
             this.registrationServiceClient = registrationServiceClient;
             this.userStoreOrig = userStoreOrig;
+            this.logger = logger;
         }
 
         public void Dispose()
@@ -123,7 +125,7 @@ namespace Ironclad.Application
                 string clientId = null;
 
                 var origUser = await userStoreOrig.Instance.FindByNameAsync(user.NormalizedUserName, cancellationToken);
-                
+
                 if (origUser == null)
                 {
                     var client = await this.clientAccountClient.GetClientByEmailAndPartnerIdAsync(user.Email, null);
@@ -192,21 +194,29 @@ namespace Ironclad.Application
             var user = await this.userStoreOrig.Instance.FindByNameAsync(normalizedUserName, cancellationToken);
 
             ClientModel client = null;
-            
-            if (user != null)
-            {
-                client = await this.clientAccountClient.GetByIdAsync(user.Id);               
-            }
-            else
-            {
-                ClientAccountInformationModel clientInfo = await this.clientAccountClient.GetClientByEmailAndPartnerIdAsync(normalizedUserName.ToLower(), null).ConfigureAwait(false);
 
-                if (clientInfo != null)
+            try
+            {
+                if (user != null)
                 {
-                    client = await this.clientAccountClient.GetByIdAsync(clientInfo.Id);
+                    client = await this.clientAccountClient.GetByIdAsync(user.Id);
+                }
+                else
+                {
+                    ClientAccountInformationModel clientInfo = await this.clientAccountClient
+                        .GetClientByEmailAndPartnerIdAsync(normalizedUserName.ToLower(), null).ConfigureAwait(false);
+
+                    if (clientInfo != null)
+                    {
+                        client = await this.clientAccountClient.GetByIdAsync(clientInfo.Id);
+                    }
                 }
             }
-            
+            catch (Exception ex)
+            {
+                this.logger.LogWarning($"User {normalizedUserName.ToLower()} not found");
+            }
+
             if (client != null)
             {
                 IPersonalData pd = await this.personalDataService.GetAsync(client.Id);
