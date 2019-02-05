@@ -4,33 +4,35 @@
 namespace Ironclad.Tests.Integration
 {
     using System;
-    using System.Globalization;
     using System.Net;
     using System.Threading.Tasks;
     using FluentAssertions;
-    using Ironclad.Client;
-    using Ironclad.Tests.Sdk;
+    using Client;
+    using Sdk;
     using Xunit;
 
-    public class RoleManagement : AuthenticationTest
+    public class RoleManagement : AuthenticationTest, IDisposable
     {
+        private readonly AuthenticationFixture _fixture;
+        private const string RolePrefix = "role-test";
+
         public RoleManagement(AuthenticationFixture fixture)
             : base(fixture)
         {
+            _fixture = fixture;
         }
 
         [Fact]
         public async Task CanAddRole()
         {
             // arrange
-            var httpClient = new RolesHttpClient(this.ApiUri, this.Handler);
-            var role = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+            var role = GetRoleName();
 
             // act
-            await httpClient.AddRoleAsync(role).ConfigureAwait(false);
+            await _fixture.RolesClient.AddRoleAsync(role).ConfigureAwait(false);
 
             // assert
-            var roleExists = await httpClient.RoleExistsAsync(role).ConfigureAwait(false);
+            var roleExists = await _fixture.RolesClient.RoleExistsAsync(role).ConfigureAwait(false);
             roleExists.Should().BeTrue();
         }
 
@@ -38,13 +40,12 @@ namespace Ironclad.Tests.Integration
         public async Task CanGetRoleSummaries()
         {
             // arrange
-            var httpClient = new RolesHttpClient(this.ApiUri, this.Handler);
-            var role = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+            var role = GetRoleName();
 
-            await httpClient.AddRoleAsync(role).ConfigureAwait(false);
+            await _fixture.RolesClient.AddRoleAsync(role).ConfigureAwait(false);
 
             // act
-            var roles = await httpClient.GetRolesAsync().ConfigureAwait(false);
+            var roles = await _fixture.RolesClient.GetRolesAsync().ConfigureAwait(false);
 
             // assert
             roles.Should().NotBeNull();
@@ -55,17 +56,16 @@ namespace Ironclad.Tests.Integration
         public async Task CanGetRoleSummariesWithQuery()
         {
             // arrange
-            var httpClient = new RolesHttpClient(this.ApiUri, this.Handler);
-            var role1 = "query";
-            var role2 = "query_test_02";
-            var role3 = "query_test_03";
+            var role1 = $"{RolePrefix}_test";
+            var role2 = $"{RolePrefix}_test_02";
+            var role3 = $"{RolePrefix}_test_03";
 
-            await httpClient.AddRoleAsync(role1).ConfigureAwait(false);
-            await httpClient.AddRoleAsync(role2).ConfigureAwait(false);
-            await httpClient.AddRoleAsync(role3).ConfigureAwait(false);
+            await _fixture.RolesClient.AddRoleAsync(role1).ConfigureAwait(false);
+            await _fixture.RolesClient.AddRoleAsync(role2).ConfigureAwait(false);
+            await _fixture.RolesClient.AddRoleAsync(role3).ConfigureAwait(false);
 
             // act
-            var roles = await httpClient.GetRolesAsync("query_").ConfigureAwait(false);
+            var roles = await _fixture.RolesClient.GetRolesAsync($"{RolePrefix}_test_").ConfigureAwait(false);
 
             // assert
             roles.Should().NotBeNull();
@@ -77,16 +77,15 @@ namespace Ironclad.Tests.Integration
         public async Task CanRemoveRole()
         {
             // arrange
-            var httpClient = new RolesHttpClient(this.ApiUri, this.Handler);
-            var role = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+            var role = GetRoleName();
 
-            await httpClient.AddRoleAsync(role).ConfigureAwait(false);
+            await _fixture.RolesClient.AddRoleAsync(role).ConfigureAwait(false);
 
             // act
-            await httpClient.RemoveRoleAsync(role).ConfigureAwait(false);
+            await _fixture.RolesClient.RemoveRoleAsync(role).ConfigureAwait(false);
 
             // assert
-            var roles = await httpClient.GetRolesAsync().ConfigureAwait(false);
+            var roles = await _fixture.RolesClient.GetRolesAsync().ConfigureAwait(false);
             roles.Should().NotBeNull();
             roles.Should().NotContain(role);
         }
@@ -95,13 +94,12 @@ namespace Ironclad.Tests.Integration
         public async Task CannotAddDuplicateRole()
         {
             // arrange
-            var httpClient = new RolesHttpClient(this.ApiUri, this.Handler);
-            var role = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+            var role = GetRoleName();
 
-            await httpClient.AddRoleAsync(role).ConfigureAwait(false);
+            await _fixture.RolesClient.AddRoleAsync(role).ConfigureAwait(false);
 
             // act
-            Func<Task> func = async () => await httpClient.AddRoleAsync(role).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.RolesClient.AddRoleAsync(role).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -111,14 +109,25 @@ namespace Ironclad.Tests.Integration
         public void CannotRemoveAdminRole()
         {
             // arrange
-            var httpClient = new RolesHttpClient(this.ApiUri, this.Handler);
             var role = "admin";
 
             // act
-            Func<Task> func = async () => await httpClient.RemoveRoleAsync(role).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.RolesClient.RemoveRoleAsync(role).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         }
+
+        public void Dispose()
+        {
+            ResourceSet<string> roles = _fixture.RolesClient.GetRolesAsync(RolePrefix).GetAwaiter().GetResult();
+
+            foreach (string role in roles)
+            {
+                _fixture.RolesClient.RemoveRoleAsync(role).GetAwaiter().GetResult();
+            }
+        }
+
+        private static string GetRoleName() => $"{RolePrefix}-{Guid.NewGuid():N}";
     }
 }

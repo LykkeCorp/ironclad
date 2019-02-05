@@ -87,6 +87,13 @@ namespace Ironclad.WebApi
             SearchPersonalDataModel searchModel =
                 await this.personalDataService.FindClientsByEmail(username);
 
+            var resourceSet = new ResourceSet<UserSummaryResource>();
+
+            if (searchModel == null)
+            {
+                return this.Ok(resourceSet);
+            }
+
             var allUsers = new List<PersonalDataModel> { searchModel };
             allUsers.AddRange(searchModel.OtherClients);
 
@@ -94,15 +101,15 @@ namespace Ironclad.WebApi
             var users = allUsers.OrderBy(user => user.Email).Skip(skip).Take(take).ToList();
             var resources = users.Select(
                 user =>
-                new UserSummaryResource
-                {
-                    Url = this.HttpContext.GetIdentityServerRelativeUrl("~/api/users/" + user.Id),
-                    Id = user.Id,
-                    Username = user.Email,
-                    Email = user.Email,
-                });
+                    new UserSummaryResource
+                    {
+                        Url = this.HttpContext.GetIdentityServerRelativeUrl("~/api/users/" + user.Id),
+                        Id = user.Id,
+                        Username = user.Email,
+                        Email = user.Email,
+                    });
 
-            var resourceSet = new ResourceSet<UserSummaryResource>(skip, totalSize, resources);
+            resourceSet = new ResourceSet<UserSummaryResource>(skip, totalSize, resources);
 
             return this.Ok(resourceSet);
         }
@@ -134,6 +141,9 @@ namespace Ironclad.WebApi
                     Id = user.Id,
                     Username = user.UserName,
                     Email = user.Email,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    FullName = user.FullName,
                     PhoneNumber = user.PhoneNumber,
                     Roles = new List<string>(roles),
                     Claims = claims,
@@ -191,6 +201,9 @@ namespace Ironclad.WebApi
             // optional properties
             user.Email = model.Email ?? user.Email;
             user.PhoneNumber = model.PhoneNumber ?? user.PhoneNumber;
+            user.FirstName = model.FirstName ?? user.FirstName;
+            user.LastName = model.LastName ?? user.LastName;
+            user.FullName = $"{model.FirstName} {model.LastName}";
 
             var addUserResult = string.IsNullOrEmpty(model.Password) ? await this.userManager.CreateAsync(user) : await this.userManager.CreateAsync(user, model.Password);
             if (!addUserResult.Succeeded)
@@ -279,6 +292,7 @@ namespace Ironclad.WebApi
         public async Task<IActionResult> Put(string username, [FromBody]User model)
         {
             var user = await this.userManager.FindByNameAsync(username) ?? await this.userManager.FindByIdAsync(username);
+
             if (user == null)
             {
                 return this.NotFound(new { Message = $"User '{username}' not found" });
@@ -310,11 +324,12 @@ namespace Ironclad.WebApi
                 return this.BadRequest(new { Message = $"Cannot change reserved claims values" });
             }
 
-            user.UserName = model.Username ?? user.UserName;
-            user.Email = model.Email ?? user.Email;
+            user.FirstName = model.FirstName ?? user.FirstName;
+            user.LastName = model.LastName ?? user.LastName;
             user.PhoneNumber = model.PhoneNumber ?? user.PhoneNumber;
 
-            var result = await this.userManager.UpdateAsync(user);
+            var result = await this.userManager.UpdateAsync(user).ConfigureAwait(false);
+
             if (!result.Succeeded)
             {
                 return this.StatusCode((int)HttpStatusCode.InternalServerError, new { Message = result.ToString() });
@@ -362,8 +377,43 @@ namespace Ironclad.WebApi
                 NormalizedEmail = username.ToUpper(),
                 NormalizedUserName = username.ToUpper(),
             };
-            
+
             await this.userManager.DeleteAsync(user);
+
+            return this.NoContent();
+        }
+
+        [HttpDelete("byEmailPattern/{emailPattern}")]
+        public async Task<IActionResult> DeleteUsers(string emailPattern)
+        {
+            SearchPersonalDataModel searchModel = await this.personalDataService.FindClientsByEmail(emailPattern);
+
+            if (searchModel == null)
+            {
+                return this.NoContent();
+            }
+
+            var emails = new List<string> {searchModel.Email};
+
+            if (searchModel.OtherClients?.Any() ?? false)
+            {
+                emails.AddRange(searchModel.OtherClients.Select(x => x.Email));
+            }
+
+            emails = emails.Where(x => x != Config.DefaultAdminUserEmail).ToList();
+
+            foreach (var email in emails)
+            {
+                var user = new ApplicationUser
+                {
+                    Email = email,
+                    UserName = email,
+                    NormalizedEmail = email.ToUpper(),
+                    NormalizedUserName = email.ToUpper(),
+                };
+
+                await this.userManager.DeleteAsync(user);
+            }
 
             return this.NoContent();
         }

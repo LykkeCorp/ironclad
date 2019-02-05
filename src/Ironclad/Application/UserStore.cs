@@ -8,6 +8,7 @@ namespace Ironclad.Application
     using ExternalIdentityProvider;
     using Lykke.Service.ClientAccount.Client;
     using Lykke.Service.ClientAccount.Client.Models;
+    using Lykke.Service.PersonalData.Client.Models;
     using Lykke.Service.PersonalData.Contract;
     using Lykke.Service.PersonalData.Contract.Models;
     using Lykke.Service.Registration;
@@ -19,7 +20,8 @@ namespace Ironclad.Application
     public class UserStore : IUserPasswordStore<ApplicationUser>,
                              IUserRoleStore<ApplicationUser>,
                              IUserClaimStore<ApplicationUser>,
-                             IUserLoginStore<ApplicationUser>
+                             IUserLoginStore<ApplicationUser>,
+                             IUserPhoneNumberStore<ApplicationUser>
     {
         private readonly IClientAccountClient clientAccountClient;
         private readonly IPersonalDataService personalDataService;
@@ -73,6 +75,8 @@ namespace Ironclad.Application
 
         public async Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken)
         {
+            string fullName = user.FullName ?? $"{user.FirstName} {user.LastName}";
+
             AccountsRegistrationResponseModel result = await this.registrationServiceClient.RegistrationApi.RegisterAsync(
                 new AccountRegistrationModel
                 {
@@ -81,13 +85,14 @@ namespace Ironclad.Application
                     Password = user.PasswordHash,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    FullName = user.FullName,
+                    FullName = fullName,
                     CreatedAt = DateTime.UtcNow
                 }, cancellationToken);
 
             if (result != null)
             {
                 user.Id = result.Account.Id;
+                user.PhoneNumber = result.Account.Phone;
 
                 await this.userStoreOrig.Instance.CreateAsync(new ApplicationUser
                 {
@@ -96,9 +101,10 @@ namespace Ironclad.Application
                     Email = user.Email,
                     NormalizedUserName = user.UserName.ToUpper(),
                     NormalizedEmail = user.Email.ToUpper(),
+                    PhoneNumber = user.PhoneNumber,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    FullName = user.FullName
+                    FullName = fullName
                 }, cancellationToken);
             }
 
@@ -107,16 +113,47 @@ namespace Ironclad.Application
 
         public async Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken)
         {
-            // TODO: client information update
+            var client = await this.FindByIdAsync(user.Id, cancellationToken);
+
+            if (client != null)
+            {
+                bool needUpdate = client.FirstName != user.FirstName ||
+                                  client.LastName != user.LastName ||
+                                  client.PhoneNumber != user.PhoneNumber;
+
+                if (needUpdate)
+                {
+                    await this.personalDataService.UpdateAsync(new PersonalDataModel
+                    {
+                        Id = client.Id,
+                        FirstName = user.FirstName,
+                        LastName = user.LastName,
+                        FullName = $"{user.FirstName} {user.LastName}",
+                        ContactPhone = user.PhoneNumber
+                    });
+                }
+            }
+
             return await this.UpdateOriginalStore(user, cancellationToken);
         }
 
         private async Task<IdentityResult> UpdateOriginalStore(ApplicationUser user, CancellationToken cancellationToken)
         {
             var existingUser = await this.userStoreOrig.Instance.FindByIdAsync(user.Id, cancellationToken);
-            return existingUser != null
-                ? await this.userStoreOrig.Instance.UpdateAsync(existingUser, cancellationToken)
-                : await this.userStoreOrig.Instance.CreateAsync(user, cancellationToken);
+            if (existingUser != null)
+            {
+                existingUser.FirstName = user.FirstName;
+                existingUser.LastName = user.LastName;
+                existingUser.FullName = user.FullName;
+                existingUser.PhoneNumber = user.PhoneNumber;
+                existingUser.Email = user.Email;
+
+                return await this.userStoreOrig.Instance.UpdateAsync(existingUser, cancellationToken);
+            }
+            else
+            {
+                return await this.userStoreOrig.Instance.CreateAsync(user, cancellationToken);
+            }
         }
 
         public async Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken)
@@ -124,7 +161,7 @@ namespace Ironclad.Application
             try
             {
                 var tasks = new List<Task>();
-                string clientId = null;
+                string clientId = user.Id;
 
                 var origUser = await userStoreOrig.Instance.FindByNameAsync(user.NormalizedUserName, cancellationToken);
 
@@ -147,13 +184,13 @@ namespace Ironclad.Application
                     tasks.Add(clientAccountClient.DeleteAccountAsync(clientId));
                     tasks.Add(personalDataService.ArchiveAsync(clientId, "ironclad"));
                     await Task.WhenAll(tasks);
-                    
+
                     if (origUser != null)
                     {
                         var result = await this.userStoreOrig.Instance.DeleteAsync(origUser, cancellationToken);
                         return result;
                     }
-                    
+
                     return IdentityResult.Success;
                 }
 
@@ -298,26 +335,46 @@ namespace Ironclad.Application
 
         public Task AddLoginAsync(ApplicationUser user, UserLoginInfo login, CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            return ((IUserLoginStore<ApplicationUser>)this.userStoreOrig.Instance).AddLoginAsync(user, login, cancellationToken);
         }
 
         public Task RemoveLoginAsync(ApplicationUser user, string loginProvider, string providerKey, CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            return ((IUserLoginStore<ApplicationUser>)this.userStoreOrig.Instance).RemoveLoginAsync(user, loginProvider, providerKey, cancellationToken);
         }
 
         public Task<IList<UserLoginInfo>> GetLoginsAsync(ApplicationUser user, CancellationToken cancellationToken)
         {
-            var result = new List<UserLoginInfo>();
-
-            return Task.FromResult((IList<UserLoginInfo>)result);
+            return ((IUserLoginStore<ApplicationUser>)this.userStoreOrig.Instance).GetLoginsAsync(user, cancellationToken);
         }
 
         public Task<ApplicationUser> FindByLoginAsync(string loginProvider, string providerKey, CancellationToken cancellationToken)
         {
-            var result = new ApplicationUser();
+            return ((IUserLoginStore<ApplicationUser>)this.userStoreOrig.Instance).FindByLoginAsync(loginProvider, providerKey, cancellationToken);
+        }
 
-            return Task.FromResult(result);
+        public Task SetPhoneNumberAsync(ApplicationUser user, string phoneNumber, CancellationToken cancellationToken)
+        {
+            // TODO: change
+            return ((IUserPhoneNumberStore<ApplicationUser>)this.userStoreOrig.Instance).SetPhoneNumberAsync(user, phoneNumber, cancellationToken);
+        }
+
+        public Task<string> GetPhoneNumberAsync(ApplicationUser user, CancellationToken cancellationToken)
+        {
+            // TODO: change
+            return ((IUserPhoneNumberStore<ApplicationUser>)this.userStoreOrig.Instance).GetPhoneNumberAsync(user, cancellationToken);
+        }
+
+        public Task<bool> GetPhoneNumberConfirmedAsync(ApplicationUser user, CancellationToken cancellationToken)
+        {
+            // TODO: change
+            return ((IUserPhoneNumberStore<ApplicationUser>)this.userStoreOrig.Instance).GetPhoneNumberConfirmedAsync(user, cancellationToken);
+        }
+
+        public Task SetPhoneNumberConfirmedAsync(ApplicationUser user, bool confirmed, CancellationToken cancellationToken)
+        {
+            // TODO: change
+            return ((IUserPhoneNumberStore<ApplicationUser>)this.userStoreOrig.Instance).SetPhoneNumberConfirmedAsync(user, confirmed, cancellationToken);
         }
     }
 }

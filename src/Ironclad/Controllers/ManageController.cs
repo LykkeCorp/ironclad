@@ -110,7 +110,15 @@ namespace Ironclad.Controllers
 //                }
 //            }
 
-            this.StatusMessage = "Your profile has been updated";
+            // simple update logic
+            user.FirstName = model.FirstName ?? user.FirstName;
+            user.LastName = model.LastName ?? user.LastName;
+            user.FullName = $"{model.FirstName} {model.LastName}";
+            user.PhoneNumber = model.PhoneNumber ?? user.PhoneNumber;
+
+            var result = await this.userManager.UpdateAsync(user).ConfigureAwait(false);
+
+            this.StatusMessage = result.Succeeded ? "Your profile has been updated" : "Error updating profile";
             return this.RedirectToAction(nameof(this.Index));
         }
 

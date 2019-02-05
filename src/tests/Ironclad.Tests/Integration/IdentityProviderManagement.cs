@@ -1,36 +1,39 @@
 ﻿// Copyright (c) Lykke Corp.
 // See the LICENSE file in the project root for more information.
 
-namespace Ironclad.Tests.Feature
-{
-    using System;
-    using System.Net;
-    using System.Threading.Tasks;
-    using FluentAssertions;
-    using Ironclad.Client;
-    using Ironclad.Tests.Sdk;
-    using Microsoft.AspNetCore.WebUtilities;
-    using Xunit;
+using System;
+using System.Net;
+using System.Threading.Tasks;
+using FluentAssertions;
+using Ironclad.Client;
+using Ironclad.Tests.Sdk;
+using Microsoft.AspNetCore.WebUtilities;
+using Xunit;
 
-    public class IdentityProviderManagement : AuthenticationTest
+namespace Ironclad.Tests.Integration
+{
+    public class IdentityProviderManagement : AuthenticationTest, IDisposable
     {
+        private readonly AuthenticationFixture _fixture;
+        private const string IdentityProviderPrefix = "idprvd-test";
+
         public IdentityProviderManagement(AuthenticationFixture fixture)
             : base(fixture)
         {
+            _fixture = fixture;
         }
 
         [Fact]
         public async Task CanAddProviderMinimum()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var expectedProvider = CreateMinimumProvider();
 
             // act
-            await httpClient.AddIdentityProviderAsync(expectedProvider).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(expectedProvider).ConfigureAwait(false);
 
             // assert
-            var actualProvider = await httpClient.GetIdentityProviderAsync(expectedProvider.Name).ConfigureAwait(false);
+            var actualProvider = await _fixture.IdentityProvidersClient.GetIdentityProviderAsync(expectedProvider.Name).ConfigureAwait(false);
             actualProvider.Should().NotBeNull();
             actualProvider.Name.Should().Be(expectedProvider.Name);
             actualProvider.Authority.Should().Be(expectedProvider.Authority);
@@ -40,11 +43,10 @@ namespace Ironclad.Tests.Feature
         [Fact]
         public async Task CanAddProvider()
         {
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var expectedProvider = new IdentityProvider
             {
-                Name = $"IntegrationTest{Guid.NewGuid():N}",
-                DisplayName = $"{nameof(IdentityProviderManagement)}.{nameof(this.CanAddProvider)} (integration test)",
+                Name = GetProviderName(),
+                DisplayName = $"{nameof(IdentityProviderManagement)}.{nameof(CanAddProvider)} (integration test)",
                 Authority = "https://auth-test.lykkecloud.com",
                 ClientId = "test-oidc",
                 CallbackPath = "/test",
@@ -54,10 +56,10 @@ namespace Ironclad.Tests.Feature
             };
 
             // act
-            await httpClient.AddIdentityProviderAsync(expectedProvider).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(expectedProvider).ConfigureAwait(false);
 
             // assert
-            var actualProvider = await httpClient.GetIdentityProviderAsync(expectedProvider.Name).ConfigureAwait(false);
+            var actualProvider = await _fixture.IdentityProvidersClient.GetIdentityProviderAsync(expectedProvider.Name).ConfigureAwait(false);
             actualProvider.Should().NotBeNull();
             actualProvider.Should().BeEquivalentTo(expectedProvider);
         }
@@ -66,13 +68,12 @@ namespace Ironclad.Tests.Feature
         public async Task CanGetProviderSummaries()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var expectedProvider = CreateMinimumProvider();
 
-            await httpClient.AddIdentityProviderAsync(expectedProvider).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(expectedProvider).ConfigureAwait(false);
 
             // act
-            var providerSummaries = await httpClient.GetIdentityProviderSummariesAsync().ConfigureAwait(false);
+            var providerSummaries = await _fixture.IdentityProvidersClient.GetIdentityProviderSummariesAsync().ConfigureAwait(false);
 
             // assert
             providerSummaries.Should().NotBeNull();
@@ -86,18 +87,16 @@ namespace Ironclad.Tests.Feature
         public async Task CanGetClientSummariesWithQuery()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
-            var prefix = $"{DateTime.Now.Ticks}-query_";
-            var provider1 = CreateMinimumProvider();
-            var provider2 = CreateMinimumProvider(prefix);
-            var provider3 = CreateMinimumProvider(prefix);
+            var provider1 = CreateMinimumProvider($"{IdentityProviderPrefix}_test");
+            var provider2 = CreateMinimumProvider($"{IdentityProviderPrefix}_test_02");
+            var provider3 = CreateMinimumProvider($"{IdentityProviderPrefix}_test_03");
 
-            await httpClient.AddIdentityProviderAsync(provider1).ConfigureAwait(false);
-            await httpClient.AddIdentityProviderAsync(provider2).ConfigureAwait(false);
-            await httpClient.AddIdentityProviderAsync(provider3).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider1).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider2).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider3).ConfigureAwait(false);
 
             // act
-            var providerSummaries = await httpClient.GetIdentityProviderSummariesAsync(prefix).ConfigureAwait(false);
+            var providerSummaries = await _fixture.IdentityProvidersClient.GetIdentityProviderSummariesAsync($"{IdentityProviderPrefix}_test_").ConfigureAwait(false);
 
             // assert
             providerSummaries.Should().NotBeNull();
@@ -110,16 +109,15 @@ namespace Ironclad.Tests.Feature
         public async Task CanRemoveProvider()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var provider = CreateMinimumProvider();
 
-            await httpClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
 
             // act
-            await httpClient.RemoveIdentityProviderAsync(provider.Name).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.RemoveIdentityProviderAsync(provider.Name).ConfigureAwait(false);
 
             // assert
-            var clientSummaries = await httpClient.GetIdentityProviderSummariesAsync().ConfigureAwait(false);
+            var clientSummaries = await _fixture.IdentityProvidersClient.GetIdentityProviderSummariesAsync().ConfigureAwait(false);
             clientSummaries.Should().NotBeNull();
             clientSummaries.Should().NotContain(summary => summary.Name == provider.Name);
         }
@@ -128,11 +126,10 @@ namespace Ironclad.Tests.Feature
         public void CannotAddBlankProvider()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var provider = new IdentityProvider();
 
             // act
-            Func<Task> func = async () => await httpClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>();
@@ -142,12 +139,11 @@ namespace Ironclad.Tests.Feature
         public void CannotAddProviderWithBadCallback()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var provider = CreateMinimumProvider();
             provider.CallbackPath = "nonsense";
 
             // act
-            Func<Task> func = async () => await httpClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>();
@@ -157,12 +153,11 @@ namespace Ironclad.Tests.Feature
         public void CannotAddProviderWithNoAuthority()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var provider = CreateMinimumProvider();
             provider.Authority = null;
 
             // act
-            Func<Task> func = async () => await httpClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>();
@@ -172,12 +167,11 @@ namespace Ironclad.Tests.Feature
         public void CannotAddProviderWithNoClientId()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var provider = CreateMinimumProvider();
             provider.ClientId = null;
 
             // act
-            Func<Task> func = async () => await httpClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>();
@@ -187,13 +181,12 @@ namespace Ironclad.Tests.Feature
         public async Task CannotAddDuplicateProvider()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var provider = CreateMinimumProvider();
 
-            await httpClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
 
             // act
-            Func<Task> func = async () => await httpClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -203,10 +196,9 @@ namespace Ironclad.Tests.Feature
         public async Task CanUseExternalProvider()
         {
             // arrange
-            var httpClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
             var provider = new IdentityProvider
             {
-                Name = $"idsvr-{Guid.NewGuid():N}",
+                Name = GetProviderName(),
                 Authority = "https://demo.identityserver.io",
                 ClientId = "implicit",
                 AcrValues = { "tenant:abc", "something:amazing" },
@@ -215,11 +207,10 @@ namespace Ironclad.Tests.Feature
                 DisplayName = "IdentityServer (Demo)"
             };
 
-            await httpClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
+            await _fixture.IdentityProvidersClient.AddIdentityProviderAsync(provider).ConfigureAwait(false);
 
             var automation = new BrowserAutomation(null, null);
-            var browser = new Browser(automation);
-            var url = this.Authority + "/signin";
+            var url = Authority + "/signin";
 
             // act
             await automation.NavigateToLoginAsync(url).ConfigureAwait(false);
@@ -242,15 +233,28 @@ namespace Ironclad.Tests.Feature
             returnUrlQueryDictionary["acr_values"].ToString().Split(' ').Should().Contain(provider.AcrValues);
         }
 
-        private static IdentityProvider CreateMinimumProvider(string namePrefix = "")
+        private static IdentityProvider CreateMinimumProvider(string name = null)
         {
             // Would much rather use something like Autofixture and not worry about this, but for now...
             return new IdentityProvider
             {
-                Name = $"{namePrefix}IntegrationTest{Guid.NewGuid():N}",
+                Name = name ?? GetProviderName(),
                 Authority = "https://auth-test.lykkecloud.com",
                 ClientId = "test-oidc"
             };
         }
+
+        public void Dispose()
+        {
+            var providers = _fixture.IdentityProvidersClient.GetIdentityProviderSummariesAsync(IdentityProviderPrefix)
+                .GetAwaiter().GetResult();
+
+            foreach (var provider in providers)
+            {
+                _fixture.IdentityProvidersClient.RemoveIdentityProviderAsync(provider.Name).GetAwaiter().GetResult();
+            }
+        }
+
+        private static string GetProviderName() => $"{IdentityProviderPrefix}-{Guid.NewGuid():N}";
     }
 }

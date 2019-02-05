@@ -3,10 +3,9 @@
 
 namespace Ironclad.Application
 {
-    using Microsoft.AspNetCore.Identity;
-    
     using Lykke.Service.ClientAccount.Client.Models;
     using Lykke.Service.PersonalData.Contract.Models;
+    using Microsoft.AspNetCore.Identity;
 
     public sealed class ApplicationUser : IdentityUser
     {

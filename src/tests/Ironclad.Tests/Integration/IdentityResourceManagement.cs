@@ -8,33 +8,36 @@ namespace Ironclad.Tests.Integration
     using System.Net;
     using System.Threading.Tasks;
     using FluentAssertions;
-    using Ironclad.Client;
-    using Ironclad.Tests.Sdk;
+    using Client;
+    using Sdk;
     using Xunit;
 
-    public class IdentityResourceManagement : AuthenticationTest
+    public class IdentityResourceManagement : AuthenticationTest, IDisposable
     {
+        private readonly AuthenticationFixture _fixture;
+        private const string IdentityResourcePrefix = "idres-test";
+
         public IdentityResourceManagement(AuthenticationFixture fixture)
             : base(fixture)
         {
+            _fixture = fixture;
         }
 
         [Fact]
         public async Task CanAddIdentityResourceMinimum()
         {
             // arrange
-            var httpClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
             var expectedResource = new IdentityResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                Name = GetResourceName(),
                 UserClaims = { "role" },
             };
 
             // act
-            await httpClient.AddIdentityResourceAsync(expectedResource).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(expectedResource).ConfigureAwait(false);
 
             // assert
-            var actualResource = await httpClient.GetIdentityResourceAsync(expectedResource.Name).ConfigureAwait(false);
+            var actualResource = await _fixture.IdentityResourcesClient.GetIdentityResourceAsync(expectedResource.Name).ConfigureAwait(false);
             actualResource.Should().NotBeNull();
             actualResource.Name.Should().Be(expectedResource.Name);
             actualResource.UserClaims.Should().Contain(expectedResource.UserClaims);
@@ -44,20 +47,19 @@ namespace Ironclad.Tests.Integration
         public async Task CanAddIdentityResource()
         {
             // arrange
-            var httpClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
             var expectedResource = new IdentityResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(this.CanAddIdentityResource)} (integration test)",
+                Name = GetResourceName(),
+                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(CanAddIdentityResource)} (integration test)",
                 UserClaims = { "name", "role" },
                 Enabled = false,
             };
 
             // act
-            await httpClient.AddIdentityResourceAsync(expectedResource).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(expectedResource).ConfigureAwait(false);
 
             // assert
-            var actualResource = await httpClient.GetIdentityResourceAsync(expectedResource.Name).ConfigureAwait(false);
+            var actualResource = await _fixture.IdentityResourcesClient.GetIdentityResourceAsync(expectedResource.Name).ConfigureAwait(false);
             actualResource.Should().NotBeNull();
             actualResource.Should().BeEquivalentTo(expectedResource);
         }
@@ -66,18 +68,17 @@ namespace Ironclad.Tests.Integration
         public async Task CanGetIdentityResourceSummaries()
         {
             // arrange
-            var httpClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
             var expectedResource = new IdentityResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(this.CanGetIdentityResourceSummaries)} (integration test)",
+                Name = GetResourceName(),
+                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(CanGetIdentityResourceSummaries)} (integration test)",
                 UserClaims = { "role" },
             };
 
-            await httpClient.AddIdentityResourceAsync(expectedResource).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(expectedResource).ConfigureAwait(false);
 
             // act
-            var resourceSummaries = await httpClient.GetIdentityResourceSummariesAsync().ConfigureAwait(false);
+            var resourceSummaries = await _fixture.IdentityResourcesClient.GetIdentityResourceSummariesAsync().ConfigureAwait(false);
 
             // assert
             resourceSummaries.Should().NotBeNull();
@@ -88,17 +89,16 @@ namespace Ironclad.Tests.Integration
         public async Task CanGetIdentityResourceSummariesWithQuery()
         {
             // arrange
-            var httpClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
-            var resource1 = new IdentityResource { Name = "query", UserClaims = { "name" } };
-            var resource2 = new IdentityResource { Name = "query_test_02", UserClaims = { "name" } };
-            var resource3 = new IdentityResource { Name = "query_test_03", UserClaims = { "name" } };
+            var resource1 = new IdentityResource { Name = $"{IdentityResourcePrefix}_test", UserClaims = { "name" } };
+            var resource2 = new IdentityResource { Name = $"{IdentityResourcePrefix}_test_02", UserClaims = { "name" } };
+            var resource3 = new IdentityResource { Name = $"{IdentityResourcePrefix}_test_03", UserClaims = { "name" } };
 
-            await httpClient.AddIdentityResourceAsync(resource1).ConfigureAwait(false);
-            await httpClient.AddIdentityResourceAsync(resource2).ConfigureAwait(false);
-            await httpClient.AddIdentityResourceAsync(resource3).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(resource1).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(resource2).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(resource3).ConfigureAwait(false);
 
             // act
-            var resourceSummaries = await httpClient.GetIdentityResourceSummariesAsync("query_").ConfigureAwait(false);
+            var resourceSummaries = await _fixture.IdentityResourcesClient.GetIdentityResourceSummariesAsync($"{IdentityResourcePrefix}_test_").ConfigureAwait(false);
 
             // assert
             resourceSummaries.Should().NotBeNull();
@@ -111,11 +111,10 @@ namespace Ironclad.Tests.Integration
         public async Task CanModifyIdentityResource()
         {
             // arrange
-            var httpClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
             var originalIdentityResource = new IdentityResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(this.CanModifyIdentityResource)} (integration test)",
+                Name = GetResourceName(),
+                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(CanModifyIdentityResource)} (integration test)",
                 UserClaims = { "name", "role" },
                 Enabled = false,
             };
@@ -123,18 +122,18 @@ namespace Ironclad.Tests.Integration
             var expectedResource = new IdentityResource
             {
                 Name = originalIdentityResource.Name,
-                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(this.CanModifyIdentityResource)} (integration test) #2",
+                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(CanModifyIdentityResource)} (integration test) #2",
                 UserClaims = { "profile" },
                 Enabled = false,
             };
 
-            await httpClient.AddIdentityResourceAsync(originalIdentityResource).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(originalIdentityResource).ConfigureAwait(false);
 
             // act
-            await httpClient.ModifyIdentityResourceAsync(expectedResource).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.ModifyIdentityResourceAsync(expectedResource).ConfigureAwait(false);
 
             // assert
-            var actualResource = await httpClient.GetIdentityResourceAsync(expectedResource.Name).ConfigureAwait(false);
+            var actualResource = await _fixture.IdentityResourcesClient.GetIdentityResourceAsync(expectedResource.Name).ConfigureAwait(false);
             actualResource.Should().NotBeNull();
             actualResource.Should().BeEquivalentTo(expectedResource);
         }
@@ -143,21 +142,20 @@ namespace Ironclad.Tests.Integration
         public async Task CanRemoveIdentityResource()
         {
             // arrange
-            var httpClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
             var resource = new IdentityResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(this.CanRemoveIdentityResource)} (integration test)",
+                Name = GetResourceName(),
+                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(CanRemoveIdentityResource)} (integration test)",
                 UserClaims = { "role" },
             };
 
-            await httpClient.AddIdentityResourceAsync(resource).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(resource).ConfigureAwait(false);
 
             // act
-            await httpClient.RemoveIdentityResourceAsync(resource.Name).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.RemoveIdentityResourceAsync(resource.Name).ConfigureAwait(false);
 
             // assert
-            var resourceSummaries = await httpClient.GetIdentityResourceSummariesAsync().ConfigureAwait(false);
+            var resourceSummaries = await _fixture.IdentityResourcesClient.GetIdentityResourceSummariesAsync().ConfigureAwait(false);
             resourceSummaries.Should().NotBeNull();
             resourceSummaries.Should().NotContain(summary => summary.Name == resource.Name);
         }
@@ -166,15 +164,14 @@ namespace Ironclad.Tests.Integration
         public void CannotAddInvalidIdentityResource()
         {
             // arrange
-            var httpClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
             var resource = new IdentityResource
             {
                 Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(this.CannotAddInvalidIdentityResource)} (integration test)",
+                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(CannotAddInvalidIdentityResource)} (integration test)",
             };
 
             // act
-            Func<Task> func = async () => await httpClient.AddIdentityResourceAsync(resource).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(resource).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>();
@@ -184,21 +181,34 @@ namespace Ironclad.Tests.Integration
         public async Task CannotAddDuplicateIdentityResource()
         {
             // arrange
-            var httpClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
             var resource = new IdentityResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(this.CannotAddDuplicateIdentityResource)} (integration test)",
+                Name = GetResourceName(),
+                DisplayName = $"{nameof(IdentityResourceManagement)}.{nameof(CannotAddDuplicateIdentityResource)} (integration test)",
                 UserClaims = { "role" },
             };
 
-            await httpClient.AddIdentityResourceAsync(resource).ConfigureAwait(false);
+            await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(resource).ConfigureAwait(false);
 
             // act
-            Func<Task> func = async () => await httpClient.AddIdentityResourceAsync(resource).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.IdentityResourcesClient.AddIdentityResourceAsync(resource).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.Conflict);
         }
+
+        public void Dispose()
+        {
+            var resources = _fixture.IdentityResourcesClient
+                .GetIdentityResourceSummariesAsync(IdentityResourcePrefix)
+                .GetAwaiter().GetResult();
+
+            foreach (var resource in resources)
+            {
+                _fixture.IdentityResourcesClient.RemoveIdentityResourceAsync(resource.Name).GetAwaiter().GetResult();
+            }
+        }
+
+        private static string GetResourceName() => $"{IdentityResourcePrefix}-{Guid.NewGuid():N}";
     }
 }

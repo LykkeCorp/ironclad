@@ -20,7 +20,7 @@ namespace Ironclad.Client
         /// <param name="size">The total size of the user set.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>The user summaries.</returns>
-        Task<ResourceSet<UserSummary>> GetUserSummariesAsync(string startsWith = default, int start = 0, int size = 20, CancellationToken cancellationToken = default);
+        Task<ResourceSet<UserSummary>> GetUserSummariesAsync(string startsWith, int start = 0, int size = 20, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Gets the specified user.
@@ -45,6 +45,14 @@ namespace Ironclad.Client
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>A task object representing the asynchronous operation.</returns>
         Task RemoveUserAsync(string username, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Removes users by email pattern.
+        /// </summary>
+        /// <param name="emailPattern">The email pattern.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>A task object representing the asynchronous operation.</returns>
+        Task RemoveUsersAsync(string emailPattern, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Modifies the specified user.

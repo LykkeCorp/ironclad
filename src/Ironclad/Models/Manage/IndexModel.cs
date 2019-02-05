@@ -14,8 +14,10 @@ namespace Ironclad.Models
         [EmailAddress]
         public string Email { get; set; }
 
+        [Required]
         public string FirstName { get; set; }
 
+        [Required]
         public string LastName { get; set; }
 
         public string FullName { get; set; }
@@ -23,6 +25,7 @@ namespace Ironclad.Models
         public bool IsEmailConfirmed { get; set; }
 
         [Phone]
+        [Required]
         [Display(Name = "Phone number")]
         public string PhoneNumber { get; set; }
 

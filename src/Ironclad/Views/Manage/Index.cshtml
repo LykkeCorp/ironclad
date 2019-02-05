@@ -10,6 +10,7 @@
     <div class="col-md-6">
         <form method="post">
             <input type="hidden" asp-for="Id"/>
+            <input type="hidden" asp-for="Email"/>
             <div asp-validation-summary="All" class="text-danger"></div>
             <div class="form-group">
                 <label asp-for="FirstName"></label>
@@ -19,22 +20,23 @@
                 <label asp-for="LastName"></label>
                 <input asp-for="LastName" class="form-control"/>
             </div>
-            <div class="form-group">
-                <label asp-for="Email"></label>
-                @if (Model.IsEmailConfirmed)
-                {
-                    <div class="input-group">
-                        <input asp-for="Email" class="form-control"/>
-                        <span class="input-group-addon" aria-hidden="true"><span class="glyphicon glyphicon-ok text-success"></span></span>
-                    </div>
-                }
-                else
-                {
-                    <input asp-for="Email" class="form-control"/>
-                    <button asp-action="SendVerificationEmail" class="btn btn-link">Send verification email</button>
-                }
-                <span asp-validation-for="Email" class="text-danger"></span>
-            </div>
+            @* Don't show the email for now *@
+@*             <div class="form-group"> *@
+@*                 <label asp-for="Email"></label> *@
+@*                 @if (Model.IsEmailConfirmed) *@
+@*                 { *@
+@*                     <div class="input-group"> *@
+@*                         <input asp-for="Email" class="form-control"/> *@
+@*                         <span class="input-group-addon" aria-hidden="true"><span class="glyphicon glyphicon-ok text-success"></span></span> *@
+@*                     </div> *@
+@*                 } *@
+@*                 else *@
+@*                 { *@
+@*                     <input asp-for="Email" class="form-control"/> *@
+@*                     <button asp-action="SendVerificationEmail" class="btn btn-link">Send verification email</button> *@
+@*                 } *@
+@*                 <span asp-validation-for="Email" class="text-danger"></span> *@
+@*             </div> *@
             <div class="form-group">
                 <label asp-for="PhoneNumber"></label>
                 <input asp-for="PhoneNumber" class="form-control"/>

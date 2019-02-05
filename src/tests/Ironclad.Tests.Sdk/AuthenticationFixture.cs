@@ -73,12 +73,12 @@ namespace Ironclad.Tests.Sdk
 
             this.Handler = new TokenHandler(result.AccessToken);
 
-            this.ApiResourcesClient = new ApiResourcesHttpClient(this.Authority, this.Handler);
-            this.ClientsClient = new ClientsHttpClient(this.Authority, this.Handler);
-            this.IdentityProvidersClient = new IdentityProvidersHttpClient(this.Authority, this.Handler);
-            this.IdentityResourcesClient = new IdentityResourcesHttpClient(this.Authority, this.Handler);
-            this.RolesClient = new RolesHttpClient(this.Authority, this.Handler);
-            this.UsersClient = new UsersHttpClient(this.Authority, this.Handler);
+            this.ApiResourcesClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
+            this.ClientsClient = new ClientsHttpClient(this.ApiUri, this.Handler);
+            this.IdentityProvidersClient = new IdentityProvidersHttpClient(this.ApiUri, this.Handler);
+            this.IdentityResourcesClient = new IdentityResourcesHttpClient(this.ApiUri, this.Handler);
+            this.RolesClient = new RolesHttpClient(this.ApiUri, this.Handler);
+            this.UsersClient = new UsersHttpClient(this.ApiUri, this.Handler);
 
             await this.OnInitializeAsync().ConfigureAwait(false);
         }
