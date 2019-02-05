@@ -34,7 +34,7 @@ namespace Ironclad.Client
 
         /// <inheritdoc />
         public Task<ResourceSet<UserSummary>> GetUserSummariesAsync(
-            string startsWith = default,
+            string startsWith,
             int start = 0,
             int size = 20,
             CancellationToken cancellationToken = default) =>
@@ -80,6 +80,9 @@ namespace Ironclad.Client
         /// <inheritdoc />
         public Task RemoveUserAsync(string username, CancellationToken cancellationToken = default) =>
             this.DeleteAsync(this.RelativeUrl($"{ApiPath}/{WebUtility.UrlEncode(NotNull(username, nameof(username)))}"), cancellationToken);
+
+        public Task RemoveUsersAsync(string emailPattern, CancellationToken cancellationToken = default) =>
+            this.DeleteAsync(this.RelativeUrl($"{ApiPath}/byEmailPattern/{WebUtility.UrlEncode(NotNull(emailPattern, nameof(emailPattern)))}"), cancellationToken);
 
         /// <inheritdoc />
         public async Task<User> ModifyUserAsync(User user, string currentUsername = null, CancellationToken cancellationToken = default)

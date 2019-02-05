@@ -5,7 +5,6 @@ namespace Ironclad.Tests.Integration
 {
     using System;
     using System.Collections.Generic;
-    using System.Globalization;
     using System.Net;
     using System.Threading.Tasks;
     using FluentAssertions;
@@ -15,72 +14,77 @@ namespace Ironclad.Tests.Integration
     using Sdk;
     using Xunit;
 
-    public class UserManagement : AuthenticationTest
+    public class UserManagement : AuthenticationTest, IDisposable
     {
+        private readonly AuthenticationFixture _fixture;
+
         public UserManagement(AuthenticationFixture fixture)
             : base(fixture)
         {
+            _fixture = fixture;
         }
 
         [Fact]
-        public async Task CanAddUserMinimum()
+        public async Task CannotAddUserWithoutPassword()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var expectedUser = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                Username = email
             };
 
             // act
-            var actualUser = await httpClient.AddUserAsync(expectedUser).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.AddUserAsync(expectedUser).ConfigureAwait(false);
 
             // assert
-            actualUser.Should().NotBeNull();
-            actualUser.Username.Should().Be(expectedUser.Username);
+            func.Should().Throw<HttpException>();
         }
 
         [Fact]
         public async Task CanAddUser()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+
             var expectedUser = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Roles = { "admin" },
                 Claims = { { "claim1", "1" } }
             };
 
             // act
-            var actualUser = await httpClient.AddUserAsync(expectedUser).ConfigureAwait(false);
+            var actualUser = await _fixture.UsersClient.AddUserAsync(expectedUser).ConfigureAwait(false);
 
             // assert
             actualUser.Should().NotBeNull();
-            actualUser.Should().BeEquivalentTo(expectedUser, options => options.Excluding(user => user.Id).Excluding(user => user.Password).Excluding(user => user.Claims));
+            actualUser.Should().BeEquivalentTo(expectedUser, options => options.Excluding(user => user.Id).Excluding(user => user.FullName).Excluding(user => user.Password).Excluding(user => user.Claims));
             actualUser.Claims.Should().Contain(expectedUser.Claims);
         }
 
-        [Fact]
+        [Fact(Skip = "not implemented or will be changed")]
         public async Task CanAddUserWithConfirmationEmail()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var expectedUser = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Email = "bit-bucket@test.smtp.org",
+                Username = email,
+                Email = email,
                 SendConfirmationEmail = true,
-                PhoneNumber = "123456789",
+                PhoneNumber = "+123456789",
                 Roles = { "admin" },
                 Claims = { { "claim1", "1" } }
             };
 
             // act
-            var actualUser = await httpClient.AddUserAsync(expectedUser).ConfigureAwait(false);
+            var actualUser = await _fixture.UsersClient.AddUserAsync(expectedUser).ConfigureAwait(false);
 
             // assert
             // TODO (Cameron): Assert email was sent (somehow).
@@ -100,17 +104,19 @@ namespace Ironclad.Tests.Integration
         public async Task CanGetUserSummaries()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var expectedUser = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Email = "bit-bucket@test.smtp.org",
+                Username = email,
+                Email = email,
+                Password = TestConfig.DefaultPassword
             };
 
-            var actualUser = await httpClient.AddUserAsync(expectedUser).ConfigureAwait(false);
+            var actualUser = await _fixture.UsersClient.AddUserAsync(expectedUser).ConfigureAwait(false);
 
             // act
-            var userSummaries = await httpClient.GetUserSummariesAsync().ConfigureAwait(false);
+            var userSummaries = await _fixture.UsersClient.GetUserSummariesAsync(TestConfig.EmailPrefix).ConfigureAwait(false);
 
             // assert
             userSummaries.Should().NotBeNull();
@@ -121,17 +127,16 @@ namespace Ironclad.Tests.Integration
         public async Task CanGetRoleSummariesWithQuery()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
-            var user1 = new User { Username = "query" };
-            var user2 = new User { Username = "query_test_02" };
-            var user3 = new User { Username = "query_test_03" };
+            var user1 = new User { Username = $"{TestConfig.EmailPrefix}query_test@test.com", Password = TestConfig.DefaultPassword};
+            var user2 = new User { Username = $"{TestConfig.EmailPrefix}query_test_02@test.com", Password = TestConfig.DefaultPassword};
+            var user3 = new User { Username = $"{TestConfig.EmailPrefix}query_test_03@test.com", Password = TestConfig.DefaultPassword};
 
-            await httpClient.AddUserAsync(user1).ConfigureAwait(false);
-            await httpClient.AddUserAsync(user2).ConfigureAwait(false);
-            await httpClient.AddUserAsync(user3).ConfigureAwait(false);
+            await _fixture.UsersClient.AddUserAsync(user1).ConfigureAwait(false);
+            await _fixture.UsersClient.AddUserAsync(user2).ConfigureAwait(false);
+            await _fixture.UsersClient.AddUserAsync(user3).ConfigureAwait(false);
 
             // act
-            var userSummaries = await httpClient.GetUserSummariesAsync("query_").ConfigureAwait(false);
+            var userSummaries = await _fixture.UsersClient.GetUserSummariesAsync($"{TestConfig.EmailPrefix}query_test_").ConfigureAwait(false);
 
             // assert
             userSummaries.Should().NotBeNull();
@@ -144,35 +149,44 @@ namespace Ironclad.Tests.Integration
         public async Task CanModifyUser()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var originalUser = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password4bob",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                FirstName = "Test",
+                LastName = "User",
+                PhoneNumber = "+123456789",
                 Roles = { "admin" },
                 Claims = { { "claim1", "1" }, { "claim2", "A" } },
             };
 
             var expectedUser = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password4superbob",
-                Email = "superbob@superbob.com",
-                PhoneNumber = "987654321",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                FirstName = "Changed",
+                LastName = "Name",
+                PhoneNumber = "+987654321",
                 Roles = { "auth_admin", "user_admin" },
                 Claims = { { "claim2", "B" }, { "claim3", "3" } },
             };
 
-            var initialUser = await httpClient.AddUserAsync(originalUser).ConfigureAwait(false);
+            var initialUser = await _fixture.UsersClient.AddUserAsync(originalUser).ConfigureAwait(false);
 
             // act
-            var actualUser = await httpClient.ModifyUserAsync(expectedUser, originalUser.Username).ConfigureAwait(false);
+            var actualUser = await _fixture.UsersClient.ModifyUserAsync(expectedUser, originalUser.Username).ConfigureAwait(false);
 
             // assert
             actualUser.Should().NotBeNull();
-            actualUser.Should().BeEquivalentTo(expectedUser, options => options.Excluding(user => user.Id).Excluding(user => user.Password).Excluding(user => user.Claims));
+            actualUser.Should().BeEquivalentTo(expectedUser, options => options.Excluding(user => user.Id).Excluding(user => user.FullName).Excluding(user => user.Password).Excluding(user => user.Claims));
+            actualUser.FirstName.Should().Be("Changed");
+            actualUser.LastName.Should().Be("Name");
+            actualUser.FullName.Should().Be("Changed Name");
+            actualUser.PhoneNumber.Should().Be("+987654321");
             actualUser.Claims.Should().Contain(expectedUser.Claims);
             actualUser.Claims.Should().NotContain(originalUser.Claims);
             actualUser.Id.Should().Be(initialUser.Id);
@@ -182,19 +196,22 @@ namespace Ironclad.Tests.Integration
         public async Task CanRemoveUser()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var user = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                Username = email,
+                Email = email,
+                Password = TestConfig.DefaultPassword
             };
 
-            await httpClient.AddUserAsync(user).ConfigureAwait(false);
+            await _fixture.UsersClient.AddUserAsync(user).ConfigureAwait(false);
 
             // act
-            await httpClient.RemoveUserAsync(user.Username).ConfigureAwait(false);
+            await _fixture.UsersClient.RemoveUserAsync(user.Username).ConfigureAwait(false);
 
             // assert
-            var userSummaries = await httpClient.GetUserSummariesAsync().ConfigureAwait(false);
+            var userSummaries = await _fixture.UsersClient.GetUserSummariesAsync(TestConfig.EmailPrefix).ConfigureAwait(false);
             userSummaries.Should().NotBeNull();
             userSummaries.Should().NotContain(summary => summary.Username == user.Username);
         }
@@ -203,22 +220,23 @@ namespace Ironclad.Tests.Integration
         public async Task CanUseUser()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var user = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
+                Username = email,
+                Email = email,
+                Password = TestConfig.DefaultPassword
             };
 
-            var adminUser = await httpClient.GetUserAsync("admin");
-            var usr = await httpClient.AddUserAsync(user).ConfigureAwait(false);
+            await _fixture.UsersClient.AddUserAsync(user).ConfigureAwait(false);
 
             // act
             var automation = new BrowserAutomation(user.Username, user.Password);
             var browser = new Browser(automation);
             var options = new OidcClientOptions
             {
-                Authority = this.Authority,
+                Authority = Authority,
                 ClientId = "auth_console",
                 RedirectUri = $"http://127.0.0.1:{browser.Port}",
                 Scope = "openid profile auth_api offline_access",
@@ -238,11 +256,10 @@ namespace Ironclad.Tests.Integration
         public void CannotAddInvalidUser()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
             var user = new User();
 
             // act
-            Func<Task> func = async () => await httpClient.AddUserAsync(user).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.AddUserAsync(user).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>();
@@ -252,16 +269,19 @@ namespace Ironclad.Tests.Integration
         public async Task CannotAddDuplicateUser()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var user = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                Username = email,
+                Email = email,
+                Password = TestConfig.DefaultPassword
             };
 
-            await httpClient.AddUserAsync(user).ConfigureAwait(false);
+            await _fixture.UsersClient.AddUserAsync(user).ConfigureAwait(false);
 
             // act
-            Func<Task> func = async () => await httpClient.AddUserAsync(user).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.AddUserAsync(user).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -271,11 +291,10 @@ namespace Ironclad.Tests.Integration
         public void CannotRemoveDefaultAdminUser()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
-            var username = "admin";
+            var username = TestConfig.DefaultAdminUserEmail;
 
             // act
-            Func<Task> func = async () => await httpClient.RemoveUserAsync(username).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.RemoveUserAsync(username).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -285,15 +304,14 @@ namespace Ironclad.Tests.Integration
         public void CannotRemoveAdminRoleFromDefaultAdminUser()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
             var user = new User
             {
-                Username = "admin",
-                Roles = { },
+                Username = TestConfig.DefaultAdminUserEmail,
+                Roles = { }
             };
 
             // act
-            Func<Task> func = async () => await httpClient.ModifyUserAsync(user).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.ModifyUserAsync(user).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -303,18 +321,19 @@ namespace Ironclad.Tests.Integration
         public void CannotAddUserWithNonExistingRole()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Roles = { "admin", "lambo_owner" },
             };
 
             // act
-            Func<Task> func = async () => await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -324,22 +343,23 @@ namespace Ironclad.Tests.Integration
         public async Task CannotModifyUserRolesWithNonExistingRole()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Roles = { "admin" },
             };
 
-            var user = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
             model.Roles.Add("lambo_owner");
 
-            Func<Task> func = async () => await httpClient.ModifyUserAsync(model).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.ModifyUserAsync(model).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -349,23 +369,24 @@ namespace Ironclad.Tests.Integration
         public async Task CannotModifyUserClaimsWithInvalidClaimValues()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Roles = { "admin" },
                 Claims = { { "claim1", "1" } },
             };
 
-            var user = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
             model.Claims = new Dictionary<string, object> { { string.Empty, null } };
 
-            Func<Task> func = async () => await httpClient.ModifyUserAsync(model).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.ModifyUserAsync(model).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -375,18 +396,19 @@ namespace Ironclad.Tests.Integration
         public async Task CanRemoveUserClaims()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Roles = { "admin" },
                 Claims = { { "claim1", "1" }, { "claim2", "2" } },
             };
 
-            var originalUser = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            var originalUser = await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
             var updateModel = new User
@@ -397,7 +419,7 @@ namespace Ironclad.Tests.Integration
             };
 
             // act
-            var actualUser = await httpClient.ModifyUserAsync(updateModel, updateModel.Username).ConfigureAwait(false);
+            var actualUser = await _fixture.UsersClient.ModifyUserAsync(updateModel, updateModel.Username).ConfigureAwait(false);
 
             // assert
             actualUser.Should().NotBeNull();
@@ -410,18 +432,19 @@ namespace Ironclad.Tests.Integration
         public async Task CanRemoveUserRoles()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Roles = { "admin" },
                 Claims = { { "claim1", "1" }, { "claim2", "2" } },
             };
 
-            var originalUser = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            var originalUser = await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
             model = new User
@@ -432,7 +455,7 @@ namespace Ironclad.Tests.Integration
             };
 
             // act
-            var actualUser = await httpClient.ModifyUserAsync(model, model.Username).ConfigureAwait(false);
+            var actualUser = await _fixture.UsersClient.ModifyUserAsync(model, model.Username).ConfigureAwait(false);
 
             // assert
             actualUser.Should().NotBeNull();
@@ -447,21 +470,22 @@ namespace Ironclad.Tests.Integration
         public async Task CanAddUserToRoles()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789"
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789"
             };
 
-            var originalUser = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            var originalUser = await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
-            await httpClient.AddRolesAsync(originalUser.Username, new[] {"admin"});
+            await _fixture.UsersClient.AddRolesAsync(originalUser.Username, new[] {"admin"});
 
-            var actualUser = await httpClient.GetUserAsync(originalUser.Username);
+            var actualUser = await _fixture.UsersClient.GetUserAsync(originalUser.Username);
 
             // assert
             actualUser.Should().NotBeNull();
@@ -476,20 +500,21 @@ namespace Ironclad.Tests.Integration
         public async Task CannotAddUserToNonExistingRole()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Roles = { "admin" }
             };
 
-            var originalUser = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            var originalUser = await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
-            Func<Task> func = async () => await httpClient.AddRolesAsync(originalUser.Username, new[] { "lambo_owner" }).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.UsersClient.AddRolesAsync(originalUser.Username, new[] { "lambo_owner" }).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -499,22 +524,23 @@ namespace Ironclad.Tests.Integration
         public async Task CanRemoveUserFromRoles()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Roles = {"admin"}
             };
 
-            var originalUser = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            var originalUser = await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
-            await httpClient.RemoveRolesAsync(originalUser.Username, new[] {"admin"});
+            await _fixture.UsersClient.RemoveRolesAsync(originalUser.Username, new[] {"admin"});
 
-            var actualUser = await httpClient.GetUserAsync(originalUser.Username).ConfigureAwait(false);
+            var actualUser = await _fixture.UsersClient.GetUserAsync(originalUser.Username).ConfigureAwait(false);
 
             // assert
             actualUser.Should().NotBeNull();
@@ -528,12 +554,9 @@ namespace Ironclad.Tests.Integration
         [Fact]
         public void CannotRemoveDefaultAdminUserFromAdminRole()
         {
-            // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
-
             // act
             Func<Task> func = async () =>
-                await httpClient.RemoveRolesAsync("admin", new[] {"admin"}).ConfigureAwait(false);
+                await _fixture.UsersClient.RemoveRolesAsync(TestConfig.DefaultAdminUserEmail, new[] {"admin"}).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -543,26 +566,27 @@ namespace Ironclad.Tests.Integration
         public async Task CanAddUserClaims()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789"
+                Username = email,
+                Password = TestConfig.DefaultAdminUserEmail,
+                Email = email,
+                PhoneNumber = "+123456789"
             };
 
-            var originalUser = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            var originalUser = await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
-            await httpClient.AddClaimsAsync(originalUser.Username,
+            await _fixture.UsersClient.AddClaimsAsync(originalUser.Username,
                 new Dictionary<string, object>
                 {
                     { "claim1", new object[] {"1", "2", "3"} },
                     { "claim2", new object[] {"21", "22", "23"} }
                 });
 
-            var actualUser = await httpClient.GetUserAsync(originalUser.Username);
+            var actualUser = await _fixture.UsersClient.GetUserAsync(originalUser.Username);
 
             // assert
             actualUser.Should().NotBeNull();
@@ -577,22 +601,23 @@ namespace Ironclad.Tests.Integration
         public async Task CannotAddUserClaimsWithInvalidClaimValues()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+            
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789"
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789"
             };
 
-            var user = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            var user = await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
             model.Claims = new Dictionary<string, object> { { string.Empty, null } };
 
             Func<Task> func = async () =>
-                await httpClient
+                await _fixture.UsersClient
                     .AddClaimsAsync(user.Username, new Dictionary<string, object> { {string.Empty, null} })
                     .ConfigureAwait(false);
 
@@ -604,22 +629,23 @@ namespace Ironclad.Tests.Integration
         public async Task CanRemoveUserClaim()
         {
             // arrange
-            var httpClient = new UsersHttpClient(this.ApiUri, this.Handler);
+            string email = GetEmail();
+
             var model = new User
             {
-                Username = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                Password = "password",
-                Email = "bit-bucket@test.smtp.org",
-                PhoneNumber = "123456789",
+                Username = email,
+                Password = TestConfig.DefaultPassword,
+                Email = email,
+                PhoneNumber = "+123456789",
                 Claims = new Dictionary<string, object> { {"claim1", "1"}, {"claim2", "2"} }
             };
 
-            var originalUser = await httpClient.AddUserAsync(model).ConfigureAwait(false);
+            var originalUser = await _fixture.UsersClient.AddUserAsync(model).ConfigureAwait(false);
 
             // act
-            await httpClient.RemoveClaimsAsync(originalUser.Username, new Dictionary<string, object> { {"claim1", new List<object> {"1"} } });
+            await _fixture.UsersClient.RemoveClaimsAsync(originalUser.Username, new Dictionary<string, object> { {"claim1", new List<object> {"1"} } });
 
-            var actualUser = await httpClient.GetUserAsync(originalUser.Username);
+            var actualUser = await _fixture.UsersClient.GetUserAsync(originalUser.Username);
 
             // assert
             actualUser.Should().NotBeNull();
@@ -629,5 +655,12 @@ namespace Ironclad.Tests.Integration
             actualUser.Claims.Should().NotContainKey("claim1");
             actualUser.Claims.Should().ContainKey("claim2");
         }
+
+        public void Dispose()
+        {
+            _fixture.UsersClient.RemoveUsersAsync(TestConfig.EmailPrefix).GetAwaiter().GetResult();
+        }
+
+        private static string GetEmail() => $"{TestConfig.EmailPrefix}{Guid.NewGuid():N}@test.com";
     }
 }

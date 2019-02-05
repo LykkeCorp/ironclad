@@ -74,5 +74,20 @@ namespace Ironclad.Client
 #if CLIENT
             = new Dictionary<string, object>();
 #endif
+
+        /// <summary>
+        /// Gets or sets the user's first name.
+        /// </summary>
+        public string FirstName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the user's last name.
+        /// </summary>
+        public string LastName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the user's last name.
+        /// </summary>
+        public string FullName { get; set; }
     }
 }

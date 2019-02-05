@@ -4,38 +4,40 @@
 namespace Ironclad.Tests.Integration
 {
     using System;
-    using System.Globalization;
     using System.Net;
     using System.Threading.Tasks;
     using FluentAssertions;
     using IdentityModel.Client;
-    using Ironclad.Client;
-    using Ironclad.Tests.Sdk;
+    using Client;
+    using Sdk;
     using Xunit;
 
-    public class ApiResourceManagement : AuthenticationTest
+    public class ApiResourceManagement : AuthenticationTest, IDisposable
     {
+        private readonly AuthenticationFixture _fixture;
+        private const string ApiResourcePrefix = "ar-test";
+
         public ApiResourceManagement(AuthenticationFixture fixture)
             : base(fixture)
         {
+            _fixture = fixture;
         }
 
         [Fact]
         public async Task CanAddApiResourceMinimum()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var expectedResource = new ApiResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                Name = GetApiResourceName(),
                 ApiSecret = "secret",
             };
 
             // act
-            await httpClient.AddApiResourceAsync(expectedResource).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(expectedResource).ConfigureAwait(false);
 
             // assert
-            var actualResource = await httpClient.GetApiResourceAsync(expectedResource.Name).ConfigureAwait(false);
+            var actualResource = await _fixture.ApiResourcesClient.GetApiResourceAsync(expectedResource.Name).ConfigureAwait(false);
             actualResource.Should().NotBeNull();
             actualResource.Name.Should().Be(expectedResource.Name);
         }
@@ -44,11 +46,10 @@ namespace Ironclad.Tests.Integration
         public async Task CanAddApiResource()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var expectedResource = new ApiResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(this.CanAddApiResource)} (integration test)",
+                Name = GetApiResourceName(),
+                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(CanAddApiResource)} (integration test)",
                 ApiSecret = "secret",
                 UserClaims = { "name", "role" },
                 ApiScopes = { new ApiResource.Scope { Name = "api", UserClaims = { "profile" } } },
@@ -56,10 +57,10 @@ namespace Ironclad.Tests.Integration
             };
 
             // act
-            await httpClient.AddApiResourceAsync(expectedResource).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(expectedResource).ConfigureAwait(false);
 
             // assert
-            var actualResource = await httpClient.GetApiResourceAsync(expectedResource.Name).ConfigureAwait(false);
+            var actualResource = await _fixture.ApiResourcesClient.GetApiResourceAsync(expectedResource.Name).ConfigureAwait(false);
             actualResource.Should().NotBeNull();
             actualResource.Should().BeEquivalentTo(expectedResource, options => options.Excluding(resource => resource.ApiSecret));
         }
@@ -68,18 +69,17 @@ namespace Ironclad.Tests.Integration
         public async Task CanGetApiResourceSummaries()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var expectedResource = new ApiResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(this.CanGetApiResourceSummaries)} (integration test)",
+                Name = GetApiResourceName(),
+                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(CanGetApiResourceSummaries)} (integration test)",
                 ApiSecret = "secret",
             };
 
-            await httpClient.AddApiResourceAsync(expectedResource).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(expectedResource).ConfigureAwait(false);
 
             // act
-            var resourceSummaries = await httpClient.GetApiResourceSummariesAsync().ConfigureAwait(false);
+            var resourceSummaries = await _fixture.ApiResourcesClient.GetApiResourceSummariesAsync().ConfigureAwait(false);
 
             // assert
             resourceSummaries.Should().NotBeNull();
@@ -90,17 +90,16 @@ namespace Ironclad.Tests.Integration
         public async Task CanGetApiResourceSummariesWithQuery()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
-            var resource1 = new ApiResource { Name = "query", ApiSecret = "secret" };
-            var resource2 = new ApiResource { Name = "query_test_02", ApiSecret = "secret" };
-            var resource3 = new ApiResource { Name = "query_test_03", ApiSecret = "secret" };
+            var resource1 = new ApiResource { Name = $"{ApiResourcePrefix}_test", ApiSecret = "secret" };
+            var resource2 = new ApiResource { Name = $"{ApiResourcePrefix}_test_02", ApiSecret = "secret" };
+            var resource3 = new ApiResource { Name = $"{ApiResourcePrefix}_test_03", ApiSecret = "secret" };
 
-            await httpClient.AddApiResourceAsync(resource1).ConfigureAwait(false);
-            await httpClient.AddApiResourceAsync(resource2).ConfigureAwait(false);
-            await httpClient.AddApiResourceAsync(resource3).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(resource1).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(resource2).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(resource3).ConfigureAwait(false);
 
             // act
-            var resourceSummaries = await httpClient.GetApiResourceSummariesAsync("query_").ConfigureAwait(false);
+            var resourceSummaries = await _fixture.ApiResourcesClient.GetApiResourceSummariesAsync($"{ApiResourcePrefix}_test_").ConfigureAwait(false);
 
             // assert
             resourceSummaries.Should().NotBeNull();
@@ -113,11 +112,10 @@ namespace Ironclad.Tests.Integration
         public async Task CanModifyApiResource()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var originalApiResource = new ApiResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(this.CanModifyApiResource)} (integration test)",
+                Name = GetApiResourceName(),
+                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(CanModifyApiResource)} (integration test)",
                 ApiSecret = "secret",
                 UserClaims = { "name", "role" },
                 ApiScopes = { new ApiResource.Scope { Name = "api", UserClaims = { "profile" } } },
@@ -127,19 +125,19 @@ namespace Ironclad.Tests.Integration
             var expectedResource = new ApiResource
             {
                 Name = originalApiResource.Name,
-                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(this.CanModifyApiResource)} (integration test) #2",
+                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(CanModifyApiResource)} (integration test) #2",
                 UserClaims = { "profile" },
                 ApiScopes = { new ApiResource.Scope { Name = "test_api", UserClaims = { "name", "role" } } },
                 Enabled = true,
             };
 
-            await httpClient.AddApiResourceAsync(originalApiResource).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(originalApiResource).ConfigureAwait(false);
 
             // act
-            await httpClient.ModifyApiResourceAsync(expectedResource).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.ModifyApiResourceAsync(expectedResource).ConfigureAwait(false);
 
             // assert
-            var actualResource = await httpClient.GetApiResourceAsync(expectedResource.Name).ConfigureAwait(false);
+            var actualResource = await _fixture.ApiResourcesClient.GetApiResourceAsync(expectedResource.Name).ConfigureAwait(false);
             actualResource.Should().NotBeNull();
             actualResource.Should().BeEquivalentTo(expectedResource, options => options.Excluding(resource => resource.ApiSecret));
         }
@@ -148,21 +146,20 @@ namespace Ironclad.Tests.Integration
         public async Task CanRemoveApiResource()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var resource = new ApiResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(this.CanRemoveApiResource)} (integration test)",
+                Name = GetApiResourceName(),
+                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(CanRemoveApiResource)} (integration test)",
                 ApiSecret = "secret",
             };
 
-            await httpClient.AddApiResourceAsync(resource).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(resource).ConfigureAwait(false);
 
             // act
-            await httpClient.RemoveApiResourceAsync(resource.Name).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.RemoveApiResourceAsync(resource.Name).ConfigureAwait(false);
 
             // assert
-            var resourceSummaries = await httpClient.GetApiResourceSummariesAsync().ConfigureAwait(false);
+            var resourceSummaries = await _fixture.ApiResourcesClient.GetApiResourceSummariesAsync().ConfigureAwait(false);
             resourceSummaries.Should().NotBeNull();
             resourceSummaries.Should().NotContain(summary => summary.Name == resource.Name);
         }
@@ -172,17 +169,16 @@ namespace Ironclad.Tests.Integration
         public async Task CanUseApiResource()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var resource = new ApiResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                Name = GetApiResourceName(),
                 ApiSecret = "secret",
             };
 
-            await httpClient.AddApiResourceAsync(resource).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(resource).ConfigureAwait(false);
 
             // act
-            var client = new IntrospectionClient(this.Authority + "/connect/introspect", resource.Name, resource.ApiSecret);
+            var client = new IntrospectionClient(Authority + "/connect/introspect", resource.Name, resource.ApiSecret);
             var response = await client.SendAsync(new IntrospectionRequest { Token = "invalid" }).ConfigureAwait(false);
 
             // assert
@@ -193,14 +189,13 @@ namespace Ironclad.Tests.Integration
         public void CannotAddInvalidApiResource()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var resource = new ApiResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
+                Name = GetApiResourceName()
             };
 
             // act
-            Func<Task> func = async () => await httpClient.AddApiResourceAsync(resource).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.ApiResourcesClient.AddApiResourceAsync(resource).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>();
@@ -210,18 +205,17 @@ namespace Ironclad.Tests.Integration
         public async Task CannotAddDuplicateApiResource()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var resource = new ApiResource
             {
-                Name = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture),
-                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(this.CannotAddDuplicateApiResource)} (integration test)",
+                Name = GetApiResourceName(),
+                DisplayName = $"{nameof(ApiResourceManagement)}.{nameof(CannotAddDuplicateApiResource)} (integration test)",
                 ApiSecret = "secret",
             };
 
-            await httpClient.AddApiResourceAsync(resource).ConfigureAwait(false);
+            await _fixture.ApiResourcesClient.AddApiResourceAsync(resource).ConfigureAwait(false);
 
             // act
-            Func<Task> func = async () => await httpClient.AddApiResourceAsync(resource).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.ApiResourcesClient.AddApiResourceAsync(resource).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -231,7 +225,6 @@ namespace Ironclad.Tests.Integration
         public void CannotModifyAuthorizationServerWebApi()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var resource = new ApiResource
             {
                 Name = "auth_api",
@@ -239,7 +232,7 @@ namespace Ironclad.Tests.Integration
             };
 
             // act
-            Func<Task> func = async () => await httpClient.ModifyApiResourceAsync(resource).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.ApiResourcesClient.ModifyApiResourceAsync(resource).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -249,14 +242,25 @@ namespace Ironclad.Tests.Integration
         public void CannotRemoveAuthorizationServerWebApi()
         {
             // arrange
-            var httpClient = new ApiResourcesHttpClient(this.ApiUri, this.Handler);
             var resourceName = "auth_api";
 
             // act
-            Func<Task> func = async () => await httpClient.RemoveApiResourceAsync(resourceName).ConfigureAwait(false);
+            Func<Task> func = async () => await _fixture.ApiResourcesClient.RemoveApiResourceAsync(resourceName).ConfigureAwait(false);
 
             // assert
             func.Should().Throw<HttpException>().And.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         }
+
+        public void Dispose()
+        {
+            ResourceSet<ResourceSummary> resources = _fixture.ApiResourcesClient.GetApiResourceSummariesAsync(ApiResourcePrefix).GetAwaiter().GetResult();
+
+            foreach (var resource in resources)
+            {
+                _fixture.ApiResourcesClient.RemoveApiResourceAsync(resource.Name).GetAwaiter().GetResult();
+            }
+        }
+
+        private static string GetApiResourceName() => $"{ApiResourcePrefix}-{Guid.NewGuid():N}";
     }
 }
