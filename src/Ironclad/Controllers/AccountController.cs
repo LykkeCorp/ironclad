@@ -110,7 +110,7 @@ namespace Ironclad.Controllers
             }
             else
             {
-                this.ModelState.AddModelError(string.Empty, "Invalid login attempt.");
+                this.ModelState.AddModelError("Password", "Invalid username or password");
                 return this.View(model);
             }
         }
