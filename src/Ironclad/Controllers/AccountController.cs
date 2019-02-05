@@ -260,7 +260,7 @@ namespace Ironclad.Controllers
 
             if (this.ModelState.IsValid)
             {
-                var existingUser = await this.userManager.FindByNameAsync(model.Email);
+                var existingUser = await this.userManager.FindByNameAsync(model.Email).ConfigureAwait(false);
 
                 if (existingUser != null)
                 {
@@ -286,7 +286,7 @@ namespace Ironclad.Controllers
 //                    var callbackUrl = this.Url.EmailConfirmationLink(user.Id, code, this.Request.Scheme);
 //                    await this.emailSender.SendEmailConfirmationAsync(model.Email, callbackUrl);
 
-                    await this.signInManager.SignInAsync(user, isPersistent: false);
+                    await this.signInManager.SignInAsync(user, isPersistent: false).ConfigureAwait(false);
                     this.logger.LogInformation("User created a new account with password.");
                     return this.RedirectToLocal(returnUrl);
                 }
