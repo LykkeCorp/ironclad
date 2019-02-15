@@ -82,6 +82,7 @@ namespace Ironclad
 
             services.AddTransientDecorator<IUserStore<ApplicationUser>, UserStore>();
             services.AddTransient<IPasswordHasher<ApplicationUser>, PasswordHasher>();
+            services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, ApplicationUserClaimsPrincipalFactory>();
 
             services.AddMvc(options => options.ValueProviderFactories.Add(new SnakeCaseQueryValueProviderFactory()))
                 .AddJsonOptions(
