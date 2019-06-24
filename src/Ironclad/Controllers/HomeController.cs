@@ -1,4 +1,4 @@
-// Copyright (c) Lykke Corp.
+﻿// Copyright (c) Lykke Corp.
 // See the LICENSE file in the project root for more information.
 
 namespace Ironclad.Controllers
@@ -6,6 +6,7 @@ namespace Ironclad.Controllers
     using System.Reflection;
     using System.Threading.Tasks;
     using IdentityServer4.Services;
+    using Ironclad.Custom;
     using Ironclad.Models;
     using Ironclad.Sdk;
     using Microsoft.AspNetCore.Mvc;

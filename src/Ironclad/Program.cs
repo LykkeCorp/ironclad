@@ -1,7 +1,7 @@
 ﻿// Copyright (c) Lykke Corp.
 // See the LICENSE file in the project root for more information.
 
-namespace Ironclad
+namespace Ironclad.Custom
 {
     using System;
     using System.Reflection;

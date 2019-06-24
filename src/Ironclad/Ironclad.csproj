@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <Description>The Ironclad identity server.</Description>
+    <Description>The customized Ironclad identity server.</Description>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     <TargetFramework>netcoreapp2.1</TargetFramework>
@@ -9,12 +9,15 @@
     <!--<CodeAnalysisRuleSet>../Ironclad.ruleset</CodeAnalysisRuleSet>-->
     <DefineConstants>$(DefineConstants)</DefineConstants>
     <OutputType>Exe</OutputType>
-    <AssemblyName>Ironclad</AssemblyName>
+    <AssemblyName>IroncladCustom</AssemblyName>
     <DockerComposeProjectPath>..\docker-compose.dcproj</DockerComposeProjectPath>
     <UserSecretsId>bbc9d7a3-f19b-4bec-baf1-68d158cca1a9</UserSecretsId>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <NoWarn>$(NoWarn);1701;1702;1705;CA2007</NoWarn>
+    <PackageId>IroncladCustom</PackageId>
+    <Product>IroncladCustom</Product>
+    <PackageProjectUrl>https://github.com/LykkeCorp/ironclad-custom</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>

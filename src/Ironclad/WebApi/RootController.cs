@@ -6,6 +6,7 @@ namespace Ironclad.WebApi
     using System;
     using System.Diagnostics;
     using System.Reflection;
+    using Ironclad.Custom;
     using Microsoft.AspNetCore.Mvc;
 
     [Route("api")]

@@ -13,4 +13,4 @@ RUN dotnet publish -c Release -r linux-x64 -o /app
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app .
-ENTRYPOINT ["dotnet", "Ironclad.dll"]
+ENTRYPOINT ["dotnet", "IroncladCustom.dll"]
